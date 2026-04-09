@@ -9,6 +9,7 @@ public sealed class Game1 : Game
     private readonly GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch = null!;
     private SpriteFont _font = null!;
+    private Texture2D _pixel = null!;
     private readonly SceneManager _scenes;
 
     private bool _commandActive;
@@ -37,6 +38,8 @@ public sealed class Game1 : Game
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _font = Content.Load<SpriteFont>("Fonts/Mono");
+        _pixel = new Texture2D(GraphicsDevice, 1, 1);
+        _pixel.SetData(new[] { Color.White });
     }
 
     private void OnTextInput(object? sender, TextInputEventArgs e)
@@ -98,9 +101,14 @@ public sealed class Game1 : Game
 
         if (_commandActive)
         {
+            int vh = GraphicsDevice.Viewport.Height;
+            int vw = GraphicsDevice.Viewport.Width;
+            int barH = _font.LineSpacing + 8;
+            var bgColor = new Color(22, 30, 46);
+
             _spriteBatch.Begin();
-            float y = GraphicsDevice.Viewport.Height - _font.LineSpacing - 4;
-            _spriteBatch.DrawString(_font, _command, new Vector2(4, y), Color.White);
+            _spriteBatch.Draw(_pixel, new Rectangle(0, vh - barH, vw, barH), bgColor);
+            _spriteBatch.DrawString(_font, _command, new Vector2(4, vh - barH + 4), Color.White);
             _spriteBatch.End();
         }
 
