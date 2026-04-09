@@ -51,8 +51,10 @@ public sealed class GameScene : IScene
     {
         float cameraY = MathF.Max(0f, _player.Position.Y - ScreenHeight / 2f);
 
+        spriteBatch.Begin();
         DrawTrack(spriteBatch, cameraY);
         _player.Draw(spriteBatch, _pixel, cameraY);
+        spriteBatch.End();
     }
 
     private void DrawTrack(SpriteBatch spriteBatch, float cameraY)

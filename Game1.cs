@@ -41,9 +41,7 @@ public sealed class Game1 : Game
     protected override void Draw(GameTime gameTime)
     {
         GraphicsDevice.Clear(Color.Black);
-        _spriteBatch.Begin();
         _scenes.Draw(_spriteBatch);
-        _spriteBatch.End();
         base.Draw(gameTime);
     }
 }
