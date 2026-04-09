@@ -108,7 +108,13 @@ public sealed class Game1 : Game
 
             _spriteBatch.Begin();
             _spriteBatch.Draw(_pixel, new Rectangle(0, vh - barH, vw, barH), bgColor);
-            _spriteBatch.DrawString(_font, _command, new Vector2(4, vh - barH + 4), Color.White);
+            float tx = 4f, ty = vh - barH + 4f;
+            foreach (char c in _command)
+            {
+                string s = c.ToString();
+                _spriteBatch.DrawString(_font, s, new Vector2(tx, ty), Color.White);
+                tx += _font.MeasureString(s).X + 2f;
+            }
             _spriteBatch.End();
         }
 
