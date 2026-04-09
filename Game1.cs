@@ -23,7 +23,7 @@ public sealed class Game1 : Game
     protected override void Initialize()
     {
         base.Initialize();
-        _scenes.Transition(new MainMenuScene(_scenes));
+        _scenes.Transition(new MainMenuScene(_scenes, this));
     }
 
     protected override void LoadContent()

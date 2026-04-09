@@ -17,9 +17,9 @@ public static class InputSystem
     public static bool WasPressed(Keys key) => _curr.IsKeyDown(key) && !_prev.IsKeyDown(key);
     public static bool WasReleased(Keys key) => !_curr.IsKeyDown(key) && _prev.IsKeyDown(key);
 
-    // Vim movement (h/l = left/right)
-    public static bool MoveLeft => WasPressed(Keys.H);
-    public static bool MoveRight => WasPressed(Keys.L);
+    // Vim movement (h/l = left/right, held for smooth movement)
+    public static bool MoveLeft => IsDown(Keys.H);
+    public static bool MoveRight => IsDown(Keys.L);
 
     // Speed control (j/k held down)
     public static bool SpeedDown => IsDown(Keys.J);

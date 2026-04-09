@@ -7,8 +7,13 @@ namespace VimRacer;
 public sealed class MainMenuScene : IScene
 {
     private readonly SceneManager _scenes;
+    private readonly Game _game;
 
-    public MainMenuScene(SceneManager scenes) => _scenes = scenes;
+    public MainMenuScene(SceneManager scenes, Game game)
+    {
+        _scenes = scenes;
+        _game = game;
+    }
 
     public void Initialize() { }
     public void LoadContent() { }
@@ -17,14 +22,14 @@ public sealed class MainMenuScene : IScene
     public void Update(GameTime gameTime)
     {
         if (InputSystem.WasPressed(Keys.Escape))
-            System.Environment.Exit(0);
+            _game.Exit();
 
         if (InputSystem.WasPressed(Keys.Enter))
-            _scenes.Transition(new LobbyScene(_scenes));
+            _scenes.Transition(new GameScene(_scenes, _game));
     }
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        // Placeholder: nothing to draw without a font loaded yet
+        // Placeholder: no font loaded yet
     }
 }

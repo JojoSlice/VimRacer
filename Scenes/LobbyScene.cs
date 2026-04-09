@@ -6,8 +6,13 @@ namespace VimRacer;
 public sealed class LobbyScene : IScene
 {
     private readonly SceneManager _scenes;
+    private readonly Game _game;
 
-    public LobbyScene(SceneManager scenes) => _scenes = scenes;
+    public LobbyScene(SceneManager scenes, Game game)
+    {
+        _scenes = scenes;
+        _game = game;
+    }
 
     public void Initialize() { }
     public void LoadContent() { }
