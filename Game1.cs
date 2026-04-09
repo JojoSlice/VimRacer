@@ -14,6 +14,7 @@ public sealed class Game1 : Game
         _graphics = new GraphicsDeviceManager(this);
         _graphics.PreferredBackBufferWidth = 480;
         _graphics.PreferredBackBufferHeight = 854;
+        _graphics.IsFullScreen = true;
         Content.RootDirectory = "Content";
         IsMouseVisible = false;
 
