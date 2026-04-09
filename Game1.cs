@@ -99,7 +99,8 @@ public sealed class Game1 : Game
         if (_commandActive)
         {
             _spriteBatch.Begin();
-            _spriteBatch.DrawString(_font, _command, new Vector2(4, 854 - _font.LineSpacing - 4), Color.White);
+            float y = GraphicsDevice.Viewport.Height - _font.LineSpacing - 4;
+            _spriteBatch.DrawString(_font, _command, new Vector2(4, y), Color.White);
             _spriteBatch.End();
         }
 
