@@ -58,13 +58,15 @@ public sealed class MainMenuScene : IScene
         foreach (var line in Logo)
             maxWidth = MathF.Max(maxWidth, _font.MeasureString(line).X);
 
-        float scale = 480f / maxWidth;
+        var viewport = _game.GraphicsDevice.Viewport;
+        float scale = viewport.Width / maxWidth;
         float lineH = _font.LineSpacing * scale;
         float totalH = lineH * Logo.Length;
-        float startY = (854f - totalH) / 3f; // place in upper third
+        float startX = (viewport.Width - maxWidth * scale) / 2f;
+        float startY = (viewport.Height - totalH) / 2f;
 
         var transform = Matrix.CreateScale(scale, scale, 1f)
-                      * Matrix.CreateTranslation(0f, startY, 0f);
+                      * Matrix.CreateTranslation(startX, startY, 0f);
 
         spriteBatch.Begin(transformMatrix: transform);
 
