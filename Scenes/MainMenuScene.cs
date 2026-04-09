@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -12,6 +13,9 @@ public sealed class MainMenuScene : IScene
 
     private SpriteFont _font = null!;
     private float _time;
+    private float _charWidth;
+    // Precomputed: (glyph string, line index, position in pre-transform space)
+    private readonly List<(string Glyph, int Line, Vector2 Pos)> _glyphs = [];
 
     private static readonly string[] Logo =
     [
@@ -39,6 +43,18 @@ public sealed class MainMenuScene : IScene
     public void LoadContent()
     {
         _font = _game.Content.Load<SpriteFont>("Fonts/Mono");
+        _charWidth = _font.MeasureString("M").X;
+
+        _glyphs.Clear();
+        for (int row = 0; row < Logo.Length; row++)
+        {
+            string line = Logo[row];
+            for (int col = 0; col < line.Length; col++)
+            {
+                if (line[col] == ' ') continue;
+                _glyphs.Add((line[col].ToString(), row, new Vector2(col * _charWidth, row * _font.LineSpacing)));
+            }
+        }
     }
 
     public void UnloadContent() { }
@@ -53,32 +69,25 @@ public sealed class MainMenuScene : IScene
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        // For a monospace font, measure one glyph and multiply by line length.
-        // MeasureString clips trailing whitespace which breaks ASCII art centering.
-        float charWidth = _font.MeasureString("M").X;
         int maxLen = 0;
         foreach (var line in Logo)
             maxLen = Math.Max(maxLen, line.Length);
-        float maxWidth = charWidth * maxLen;
+        float maxWidth = _charWidth * maxLen;
 
         var viewport = _game.GraphicsDevice.Viewport;
         float scale = viewport.Width / maxWidth;
-        float lineH = _font.LineSpacing * scale;
-        float totalH = lineH * Logo.Length;
-        float startX = (viewport.Width - maxWidth * scale) / 2f;
+        float totalH = _font.LineSpacing * scale * Logo.Length;
         float startY = (viewport.Height - totalH) / 2f;
 
-        var transform =
-            Matrix.CreateScale(scale, scale, 1f) * Matrix.CreateTranslation(startX, startY, 0f);
+        var transform = Matrix.CreateScale(scale, scale, 1f)
+                      * Matrix.CreateTranslation(0f, startY, 0f);
 
         spriteBatch.Begin(transformMatrix: transform);
 
-        for (int i = 0; i < Logo.Length; i++)
+        foreach (var (glyph, line, pos) in _glyphs)
         {
-            // Neon wave: hue shifts across lines and over time
-            float hue = (_time * 80f + i * 18f) % 360f;
-            Color color = HsvToColor(hue, 1f, 1f);
-            spriteBatch.DrawString(_font, Logo[i], new Vector2(0f, i * _font.LineSpacing), color);
+            float hue = (_time * 80f + line * 18f) % 360f;
+            spriteBatch.DrawString(_font, glyph, pos, HsvToColor(hue, 1f, 1f));
         }
 
         spriteBatch.End();
