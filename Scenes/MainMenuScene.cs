@@ -47,9 +47,6 @@ public sealed class MainMenuScene : IScene
     {
         _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        if (InputSystem.WasPressed(Keys.Escape))
-            _game.Exit();
-
         if (InputSystem.WasPressed(Keys.Enter))
             _scenes.Transition(new GameScene(_scenes, _game));
     }
