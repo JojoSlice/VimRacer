@@ -53,10 +53,13 @@ public sealed class MainMenuScene : IScene
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        // Measure logo to compute uniform scale fitting screen width
-        float maxWidth = 0f;
+        // For a monospace font, measure one glyph and multiply by line length.
+        // MeasureString clips trailing whitespace which breaks ASCII art centering.
+        float charWidth = _font.MeasureString("M").X;
+        int maxLen = 0;
         foreach (var line in Logo)
-            maxWidth = MathF.Max(maxWidth, _font.MeasureString(line).X);
+            maxLen = Math.Max(maxLen, line.Length);
+        float maxWidth = charWidth * maxLen;
 
         var viewport = _game.GraphicsDevice.Viewport;
         float scale = viewport.Width / maxWidth;
