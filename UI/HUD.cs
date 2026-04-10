@@ -101,12 +101,12 @@ public sealed class HUD
     {
         sb.Draw(_pixel, layout.InfoRect, ColorPanel);
 
-        const int PadB   = 8;
-        const int SegH   = 10;
-        const int SegGap = 3;
-        const int MeterH = 10 * SegH + 9 * SegGap; // 127px
-        int segW = Math.Max(4, layout.InfoW - 16);
-        int segX = layout.InfoX + (layout.InfoW - segW) / 2;
+        const int PadB    = 8;
+        const int SegH    = 10;
+        const int SegGap  = 3;
+        const int MeterH  = 10 * SegH + 9 * SegGap; // 127px
+        const int MeterW  = 10;
+        int meterX = layout.InfoX + layout.InfoW - MeterW - 4;
 
         // ── Bottom: bullet + speed meter ────────────────────────────────────
         string bulletText = combo.HasBullet ? "[*]" : "[ ]";
@@ -119,14 +119,31 @@ public sealed class HUD
         int meterBottom = bulletY - 8;
         int meterTop    = meterBottom - MeterH;
 
-        // Speed meter: 10 segments, filled bottom-up
+        // Speed meter: 10 segments, filled bottom-up (narrow bar, right-aligned)
         for (int i = 0; i < 10; i++)
         {
             int sy     = meterTop + (9 - i) * (SegH + SegGap);
             bool filled = i < player.MaxSpeedLevel;
-            sb.Draw(_pixel, new Rectangle(segX, sy, segW, SegH),
+            sb.Draw(_pixel, new Rectangle(meterX, sy, MeterW, SegH),
                 filled ? ColorSpeed : new Color(30, 40, 30));
         }
+
+        // Current speed (km/h) horizontal, to the left of the meter
+        const float SpeedScale = 1.3f;
+        string speedNum  = $"{(int)player.Speed}";
+        string speedUnit = "km/h";
+        Vector2 numSz  = _font.MeasureString(speedNum)  * SpeedScale;
+        Vector2 unitSz = _font.MeasureString(speedUnit) * SpeedScale;
+        float textCenterX = layout.InfoX + (meterX - layout.InfoX - 4f) / 2f;
+        float lineH       = _font.LineSpacing * SpeedScale;
+        float blockH      = lineH * 2f + 2f;
+        float blockTop    = meterTop + (MeterH - blockH) / 2f;
+        sb.DrawString(_font, speedNum,
+            new Vector2(textCenterX - numSz.X / 2f, blockTop),
+            ColorSpeed, 0f, Vector2.Zero, SpeedScale, SpriteEffects.None, 0f);
+        sb.DrawString(_font, speedUnit,
+            new Vector2(textCenterX - unitSz.X / 2f, blockTop + lineH + 2f),
+            new Color(80, 140, 80), 0f, Vector2.Zero, SpeedScale, SpriteEffects.None, 0f);
 
         // ── Progress strip ───────────────────────────────────────────────────
         const int StripPadT = 16;

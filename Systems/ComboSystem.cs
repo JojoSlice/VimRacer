@@ -28,6 +28,7 @@ public sealed class ComboSystem
     public bool   HasBullet { get; private set; }
 
     public void UseBullet() => HasBullet = false;
+    public void ResetStreak() => _streak = 0;
 
     public void GenerateCombo(int maxSpeedLevel)
     {
