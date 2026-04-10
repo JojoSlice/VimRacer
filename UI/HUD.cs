@@ -109,7 +109,7 @@ public sealed class HUD
             ColorStreak);
 
         // ── Bullet indicator (left side) ────────────────────────────────────
-        string bulletText = combo.HasBullet ? "●" : "○";
+        string bulletText = combo.HasBullet ? "[*]" : "[ ]";
         sb.DrawString(_font, bulletText,
             new Vector2(PadX, (BarH - _font.LineSpacing) / 2f),
             combo.HasBullet ? ColorBullet : new Color(80, 80, 80));
