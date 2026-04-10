@@ -9,13 +9,11 @@ public sealed class Player
     public Vector2 Position;
     public float Speed;
 
-    public const float TrackLeft = 40f;
-    public const float TrackRight = 440f;
-    public const float Width = 32f;
+    public const float Width  = 32f;
     public const float Height = 48f;
 
     public const float MinSpeed = 60f;
-    private const float LateralSpeed = 200f;
+    private const float LateralSpeed    = 200f;
     private const float SpeedChangeRate = 150f;
 
     private static readonly float[] MaxSpeeds =
@@ -29,10 +27,10 @@ public sealed class Player
     public Player(Vector2 startPosition)
     {
         Position = startPosition;
-        Speed = MinSpeed;
+        Speed    = MinSpeed;
     }
 
-    public void Update(GameTime gameTime)
+    public void Update(GameTime gameTime, float trackLeft, float trackRight)
     {
         float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -47,9 +45,9 @@ public sealed class Player
 
         // Lateral movement: h = left, l = right
         if (InputSystem.MoveLeft)
-            Position.X = MathF.Max(Position.X - LateralSpeed * dt, TrackLeft + Width / 2f);
+            Position.X = MathF.Max(Position.X - LateralSpeed * dt, trackLeft + Width / 2f);
         if (InputSystem.MoveRight)
-            Position.X = MathF.Min(Position.X + LateralSpeed * dt, TrackRight - Width / 2f);
+            Position.X = MathF.Min(Position.X + LateralSpeed * dt, trackRight - Width / 2f);
     }
 
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, float cameraY)
