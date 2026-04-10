@@ -8,6 +8,8 @@ public sealed class SceneManager
     private IScene? _current;
     private IScene? _pending;
 
+    public IScene? CurrentScene => _current;
+
     public void Transition(IScene next)
     {
         _pending = next;

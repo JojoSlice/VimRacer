@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace VimRacer;
 
@@ -42,9 +41,6 @@ public sealed class ResultScene : IScene
     public void Update(GameTime gameTime)
     {
         _blink += (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        if (InputSystem.WasPressed(Keys.Enter))
-            _scenes.Transition(new MainMenuScene(_scenes, _game));
     }
 
     public void Draw(SpriteBatch sb)
@@ -108,14 +104,35 @@ public sealed class ResultScene : IScene
             sb.DrawString(_font, rows[i], new Vector2(tx, ty), c);
         }
 
-        // Pulsing prompt
-        const string prompt = "PRESS ENTER";
-        float alpha = (MathF.Sin(_blink * 3f) + 1f) / 2f;
-        var promptColor = new Color(1f, 1f, 1f, alpha);
-        Vector2 promptSz = _font.MeasureString(prompt);
-        sb.DrawString(_font, prompt,
-            new Vector2((vp.Width - promptSz.X) / 2f, boxY + boxH + 24f),
-            promptColor);
+        // Command list
+        (string Cmd, string Desc)[] commands =
+        [
+            (":run",  "new race"),
+            (":menu", "main menu"),
+            (":q",    "quit"),
+        ];
+
+        var cmdColor  = new Color(100, 210, 210);
+        var descColor = new Color(100, 100, 110);
+
+        float cmdW = 0f;
+        foreach (var (cmd, _) in commands)
+            cmdW = MathF.Max(cmdW, _font.MeasureString(cmd).X);
+
+        float descW = 0f;
+        foreach (var (_, desc) in commands)
+            descW = MathF.Max(descW, _font.MeasureString(desc).X);
+
+        float listX = (vp.Width - cmdW - 16f - descW) / 2f;
+        float listY = boxY + boxH + 28f;
+
+        for (int i = 0; i < commands.Length; i++)
+        {
+            var (cmd, desc) = commands[i];
+            float y = listY + i * lineH;
+            sb.DrawString(_font, cmd,  new Vector2(listX, y), cmdColor);
+            sb.DrawString(_font, desc, new Vector2(listX + cmdW + 16f, y), descColor);
+        }
 
         sb.End();
     }

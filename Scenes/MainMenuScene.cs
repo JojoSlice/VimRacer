@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace VimRacer;
 
@@ -62,9 +61,6 @@ public sealed class MainMenuScene : IScene
     public void Update(GameTime gameTime)
     {
         _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        if (InputSystem.WasPressed(Keys.Enter))
-            _scenes.Transition(new GameScene(_scenes, _game));
     }
 
     public void Draw(SpriteBatch spriteBatch)
@@ -92,16 +88,34 @@ public sealed class MainMenuScene : IScene
 
         spriteBatch.End();
 
-        // "PRESS ENTER" below logo, pulsing white
-        const string prompt = "PRESS ENTER";
-        float alpha = (MathF.Sin(_time * 3f) + 1f) / 2f;
-        var promptColor = new Color(1f, 1f, 1f, alpha);
-        Vector2 promptSize = _font.MeasureString(prompt);
-        float promptX = (viewport.Width - promptSize.X) / 2f;
-        float promptY = startY + totalH + 32f;
+        // Command list below logo
+        (string Cmd, string Desc)[] commands =
+        [
+            (":run",   "start race"),
+            (":lobby", "multiplayer"),
+            (":q",     "quit"),
+        ];
+
+        var cmdColor  = new Color(100, 210, 210);
+        var descColor = new Color(100, 100, 110);
+
+        float cmdW  = 0f;
+        foreach (var (cmd, _) in commands)
+            cmdW = MathF.Max(cmdW, _font.MeasureString(cmd).X);
+
+        float lineH    = _font.LineSpacing;
+        float blockH   = commands.Length * lineH;
+        float blockY   = startY + totalH + 40f;
+        float blockX   = (viewport.Width - cmdW - 16f - _font.MeasureString("start race").X) / 2f;
 
         spriteBatch.Begin();
-        spriteBatch.DrawString(_font, prompt, new Vector2(promptX, promptY), promptColor);
+        for (int i = 0; i < commands.Length; i++)
+        {
+            var (cmd, desc) = commands[i];
+            float y = blockY + i * lineH;
+            spriteBatch.DrawString(_font, cmd,  new Vector2(blockX, y), cmdColor);
+            spriteBatch.DrawString(_font, desc, new Vector2(blockX + cmdW + 16f, y), descColor);
+        }
         spriteBatch.End();
     }
 

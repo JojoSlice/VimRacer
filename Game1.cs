@@ -10,7 +10,8 @@ public sealed class Game1 : Game
     private SpriteBatch _spriteBatch = null!;
     private SpriteFont _font = null!;
     private Texture2D _pixel = null!;
-    private readonly SceneManager _scenes;
+    private readonly SceneManager   _scenes;
+    private readonly NetworkManager _network = new();
 
     private bool _commandActive;
     private string _command = "";
@@ -77,6 +78,14 @@ public sealed class Game1 : Game
     {
         if (_command == ":q")
             Exit();
+        else if (_command == ":run")
+            _scenes.Transition(new GameScene(_scenes, this));
+        else if (_command == ":menu")
+            _scenes.Transition(new MainMenuScene(_scenes, this));
+        else if (_command == ":lobby")
+            _scenes.Transition(new LobbyScene(_scenes, this, _network));
+        else if (_scenes.CurrentScene is LobbyScene lobby)
+            lobby.HandleCommand(_command);
 
         _commandActive = false;
         _command = "";
