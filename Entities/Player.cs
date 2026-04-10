@@ -12,13 +12,13 @@ public sealed class Player
     public const float Width  = 32f;
     public const float Height = 48f;
 
-    public const float MinSpeed = 60f;
-    private const float LateralSpeed    = 200f;
-    private const float SpeedChangeRate = 150f;
+    public const float MinSpeed = 300f;
+    private const float LateralSpeed    = 400f;
+    private const float SpeedChangeRate = 500f;
 
     private static readonly float[] MaxSpeeds =
     [
-        100f, 144f, 189f, 233f, 278f, 322f, 367f, 411f, 456f, 500f
+        450f, 550f, 650f, 750f, 850f, 950f, 1050f, 1150f, 1300f, 1500f
     ];
 
     public int MaxSpeedLevel { get; private set; } = 1;
