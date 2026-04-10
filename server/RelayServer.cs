@@ -9,11 +9,13 @@ internal sealed class RelayServer : INetEventListener
 {
     private readonly NetManager    _net;
     private readonly LobbyRegistry _registry = new();
+    private readonly UserDatabase  _db;
 
     private const string Key = "vimracer";
 
-    public RelayServer(int port)
+    public RelayServer(int port, UserDatabase db)
     {
+        _db  = db;
         _net = new NetManager(this) { AutoRecycle = true };
         _net.Start(port);
     }
@@ -35,26 +37,7 @@ internal sealed class RelayServer : INetEventListener
     {
         Console.WriteLine($"[-] {peer.EndPoint} disconnected");
         if (!_registry.TryGet(peer, out var player)) return;
-
-        var lobby   = _registry.LobbyOf(player);
-        var others  = lobby?.Others(player).ToArray();
-        bool wasHost = lobby != null && player == lobby.Host;
-
-        _registry.Leave(player);
-
-        if (others != null)
-        {
-            if (wasHost)
-            {
-                foreach (var o in others)
-                    Send(o.Peer, Packet.Simple(MsgType.S_LobbyLeft));
-            }
-            else if (lobby != null && lobby.Players.Count > 0)
-            {
-                SendLobbyUpdated(lobby);
-            }
-        }
-
+        NotifyLobbyOnExit(player);
         _registry.Remove(peer);
     }
 
@@ -64,19 +47,24 @@ internal sealed class RelayServer : INetEventListener
         if (!_registry.TryGet(peer, out var player)) return;
 
         byte[] data  = reader.GetRemainingBytes();
+        if (data.Length == 0) return;
         var    type  = (MsgType)data[0];
         using var ms = new MemoryStream(data, 1, data.Length - 1);
         using var br = new BinaryReader(ms);
 
         switch (type)
         {
-            case MsgType.C_Hello:       HandleHello(player, br);       break;
-            case MsgType.C_CreateLobby: HandleCreateLobby(player, br); break;
-            case MsgType.C_ListLobbies: HandleListLobbies(player);     break;
-            case MsgType.C_JoinLobby:   HandleJoinLobby(player, br);   break;
-            case MsgType.C_LeaveLobby:  HandleLeaveLobby(player);      break;
-            case MsgType.C_ToggleReady: HandleToggleReady(player);     break;
-            case MsgType.C_GameData:    HandleGameData(player, data);  break;
+            case MsgType.C_Register:     HandleRegister(player, br);         break;
+            case MsgType.C_Login:        HandleLogin(player, br);            break;
+            case MsgType.C_CreateLobby:  HandleCreateLobby(player, br);      break;
+            case MsgType.C_ListLobbies:  HandleListLobbies(player);          break;
+            case MsgType.C_JoinLobby:    HandleJoinLobby(player, br);        break;
+            case MsgType.C_LeaveLobby:   HandleLeaveLobby(player);           break;
+            case MsgType.C_ToggleReady:  HandleToggleReady(player);          break;
+            case MsgType.C_GameData:     HandleGameData(player, data);       break;
+            case MsgType.C_PlayerUpdate: HandlePlayerUpdate(player, data);   break;
+            // C_Hello (0x01) intentionally unhandled — kept in enum to avoid
+            // misrouting stale packets from older clients.
         }
     }
 
@@ -88,17 +76,73 @@ internal sealed class RelayServer : INetEventListener
 
     public void OnNetworkLatencyUpdate(NetPeer peer, int latency) { }
 
-    // ── Handlers ─────────────────────────────────────────────────────────────
+    // ── Auth handlers ─────────────────────────────────────────────────────────
 
-    private void HandleHello(PlayerInfo player, BinaryReader r)
+    private void HandleRegister(PlayerInfo player, BinaryReader r)
     {
-        player.Name = Packet.ReadStr(r);
-        Console.WriteLine($"    Hello from '{player.Name}'");
-        HandleListLobbies(player);
+        if (player.UserId != null) { SendError(player.Peer, "Already logged in."); return; }
+
+        string username = Packet.ReadStr(r);
+        string password = Packet.ReadStr(r);
+
+        if (!_db.TryRegister(username, password, out int userId, out string error))
+        {
+            Send(player.Peer, Packet.Build(MsgType.S_LoginFail, w => Packet.WriteStr(w, error)));
+            return;
+        }
+
+        player.UserId   = userId;
+        player.Username = username.ToLowerInvariant();
+        Console.WriteLine($"    Registered '{player.Username}' (id={userId})");
+        Send(player.Peer, Packet.Build(MsgType.S_LoginOk, w =>
+        {
+            w.Write(userId);
+            Packet.WriteStr(w, player.Username);
+        }));
+    }
+
+    private void HandleLogin(PlayerInfo player, BinaryReader r)
+    {
+        if (player.UserId != null) { SendError(player.Peer, "Already logged in."); return; }
+
+        string username = Packet.ReadStr(r);
+        string password = Packet.ReadStr(r);
+
+        if (!_db.TryLogin(username, password, out int userId, out string displayName))
+        {
+            Send(player.Peer, Packet.Build(MsgType.S_LoginFail, w => Packet.WriteStr(w, "Invalid username or password.")));
+            return;
+        }
+
+        // Prevent duplicate sessions
+        if (_registry.FindByUserId(userId) != null)
+        {
+            Send(player.Peer, Packet.Build(MsgType.S_LoginFail, w => Packet.WriteStr(w, "Already logged in from another session.")));
+            return;
+        }
+
+        player.UserId   = userId;
+        player.Username = displayName;
+        Console.WriteLine($"    Login '{player.Username}' (id={userId})");
+        Send(player.Peer, Packet.Build(MsgType.S_LoginOk, w =>
+        {
+            w.Write(userId);
+            Packet.WriteStr(w, player.Username);
+        }));
+    }
+
+    // ── Lobby handlers ────────────────────────────────────────────────────────
+
+    private bool RequireLogin(PlayerInfo player)
+    {
+        if (player.UserId != null) return true;
+        SendError(player.Peer, "Not logged in.");
+        return false;
     }
 
     private void HandleCreateLobby(PlayerInfo player, BinaryReader r)
     {
+        if (!RequireLogin(player)) return;
         if (player.LobbyId != null) { SendError(player.Peer, "Already in a lobby."); return; }
 
         string name  = Packet.ReadStr(r);
@@ -109,6 +153,8 @@ internal sealed class RelayServer : INetEventListener
 
     private void HandleListLobbies(PlayerInfo player)
     {
+        if (!RequireLogin(player)) return;
+
         var lobbies = _registry.OpenLobbies().ToArray();
         var msg = Packet.Build(MsgType.S_LobbyList, w =>
         {
@@ -125,6 +171,8 @@ internal sealed class RelayServer : INetEventListener
 
     private void HandleJoinLobby(PlayerInfo player, BinaryReader r)
     {
+        if (!RequireLogin(player)) return;
+
         int lobbyId = r.ReadInt32();
 
         if (!_registry.TryJoinLobby(player, lobbyId, out var lobby))
@@ -135,29 +183,41 @@ internal sealed class RelayServer : INetEventListener
 
         Console.WriteLine($"    '{player.Name}' joined lobby '{lobby.Name}' ({lobby.Slots}/{Lobby.MaxPlayers})");
         SendLobbyJoined(player, lobby);
-        SendLobbyUpdated(lobby);   // notify existing players
+        SendLobbyUpdated(lobby);
     }
 
     private void HandleLeaveLobby(PlayerInfo player)
     {
-        var lobby   = _registry.LobbyOf(player);
-        var others  = lobby?.Others(player).ToArray();
-        bool wasHost = lobby != null && player == lobby.Host;
-
-        _registry.Leave(player);
+        if (!RequireLogin(player)) return;
+        NotifyLobbyOnExit(player);
         Send(player.Peer, Packet.Simple(MsgType.S_LobbyLeft));
+    }
 
-        if (others != null)
+    // Handles lobby state cleanup when a player exits (disconnect or leave).
+    // Evicts all remaining members if the host left; otherwise sends an update.
+    private void NotifyLobbyOnExit(PlayerInfo player)
+    {
+        var lobby    = _registry.LobbyOf(player);
+        bool wasHost = lobby != null && player == lobby.Host;
+        _registry.Leave(player);
+
+        if (lobby == null) return;
+
+        if (wasHost)
         {
-            if (wasHost)
-                foreach (var o in others) Send(o.Peer, Packet.Simple(MsgType.S_LobbyLeft));
-            else if (lobby!.Players.Count > 0)
-                SendLobbyUpdated(lobby);
+            foreach (var o in lobby.Others(player))
+                Send(o.Peer, Packet.Simple(MsgType.S_LobbyLeft));
+        }
+        else if (lobby.Players.Count > 0)
+        {
+            SendLobbyUpdated(lobby);
         }
     }
 
     private void HandleToggleReady(PlayerInfo player)
     {
+        if (!RequireLogin(player)) return;
+
         var lobby = _registry.LobbyOf(player);
         if (lobby == null) return;
 
@@ -174,6 +234,21 @@ internal sealed class RelayServer : INetEventListener
         if (lobby?.Started != true) return;
 
         var msg = Packet.Build(MsgType.S_GameData, w => w.Write(raw, 1, raw.Length - 1));
+        foreach (var other in lobby.Others(sender))
+            Send(other.Peer, msg);
+    }
+
+    private void HandlePlayerUpdate(PlayerInfo sender, byte[] raw)
+    {
+        var lobby = _registry.LobbyOf(sender);
+        if (lobby?.Started != true) return;
+
+        int senderIndex = lobby.Players.IndexOf(sender);
+        var msg = Packet.Build(MsgType.S_PlayerUpdate, w =>
+        {
+            w.Write((byte)senderIndex);
+            w.Write(raw, 1, raw.Length - 1);
+        });
         foreach (var other in lobby.Others(sender))
             Send(other.Peer, msg);
     }

@@ -1,7 +1,8 @@
 using VimRacerServer;
 
 const int Port = 7777;
-var server = new RelayServer(Port);
+var db     = new UserDatabase("vimracer.db");
+var server = new RelayServer(Port, db);
 Console.WriteLine($"VimRacer relay server listening on :{Port}");
 Console.WriteLine("Press Ctrl+C to stop.");
 

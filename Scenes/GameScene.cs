@@ -17,7 +17,10 @@ public sealed class GameScene : IScene
 
     private WallNarrowing[]  _narrowings = [];
     private TrackObstacle[]  _obstacles  = [];
-    private readonly Random _rng = new();
+    private readonly Random _rng;
+
+    private readonly NetworkManager?             _network;
+    private readonly Dictionary<int, Vector2>    _remotePlayers = new();
 
     private readonly CollisionSystem    _collision = new();
     private readonly List<CollisionHit> _hits      = new();
@@ -33,14 +36,23 @@ public sealed class GameScene : IScene
     private float      _elapsedTime;
     private GameLayout _layout;
 
-    private const float TrackStart   = 30000f; // player starts near bottom
-    private const float FinishLineY  = 200f;   // finish line near top
-    private const float MarkerSpacing = 500f;   // lane marker interval
+    private const float TrackStart    = 30000f;
+    private const float FinishLineY  = 200f;
+    private const float MarkerSpacing = 500f;
 
-    public GameScene(SceneManager scenes, Game game)
+    private static readonly Color TrackColor    = new(40, 40, 40);
+    private static readonly Color MarkerColor   = new(65, 65, 65);
+    private static readonly Color DividerColor  = new(80, 80, 80);
+    private static readonly Color ObstacleColor = new(180, 100, 20);
+    private static readonly Color WallColor     = new(160, 50, 50);
+    private static readonly Color GhostColor    = new(0, 200, 255, 150);
+
+    public GameScene(SceneManager scenes, Game game, int? seed = null, NetworkManager? network = null)
     {
-        _scenes = scenes;
-        _game   = game;
+        _scenes  = scenes;
+        _game    = game;
+        _network = network;
+        _rng     = seed.HasValue ? new Random(seed.Value) : new Random();
     }
 
     public void Initialize()
@@ -66,6 +78,9 @@ public sealed class GameScene : IScene
         }
 
         _bullets = new BulletManager(_collision);
+
+        if (_network != null)
+            _network.OnPlayerUpdate += OnRemotePlayerUpdate;
 
         foreach (var n in _narrowings)
         {
@@ -95,6 +110,8 @@ public sealed class GameScene : IScene
 
     public void UnloadContent()
     {
+        if (_network != null)
+            _network.OnPlayerUpdate -= OnRemotePlayerUpdate;
         _pixel.Dispose();
     }
 
@@ -124,6 +141,8 @@ public sealed class GameScene : IScene
         _playerBody.Bounds = Aabb.FromCenter(
             _player.Position.X, _player.Position.Y, Player.Width, Player.Height);
 
+        _network?.SendPosition(_player.Position.X, _player.Position.Y);
+
         if (InputSystem.Shoot && _combo.HasBullet)
         {
             _combo.UseBullet();
@@ -150,6 +169,7 @@ public sealed class GameScene : IScene
         DrawNarrowings(spriteBatch, cameraY, layout);
         DrawObstacles(spriteBatch, cameraY, layout);
         _bullets.Draw(spriteBatch, _pixel, cameraY);
+        DrawRemotePlayers(spriteBatch, cameraY);
         _player.Draw(spriteBatch, _pixel, cameraY);
         _hud.Draw(spriteBatch, _player, _combo, layout, TrackStart, FinishLineY);
         spriteBatch.End();
@@ -158,7 +178,7 @@ public sealed class GameScene : IScene
     private void DrawTrack(SpriteBatch sb, float cameraY, GameLayout layout)
     {
         // Track surface
-        sb.Draw(_pixel, layout.RacingRect, new Color(40, 40, 40));
+        sb.Draw(_pixel, layout.RacingRect, TrackColor);
 
         // Lane markers every 200 world units
         float first = MathF.Floor(cameraY / MarkerSpacing) * MarkerSpacing;
@@ -168,7 +188,7 @@ public sealed class GameScene : IScene
             if (sy < 0 || sy > layout.ScreenH) continue;
             sb.Draw(_pixel,
                 new Rectangle(layout.RacingX + 8, sy, layout.RacingW - 16, 2),
-                new Color(65, 65, 65));
+                MarkerColor);
         }
 
         // Finish line
@@ -179,8 +199,8 @@ public sealed class GameScene : IScene
                 Color.Yellow);
 
         // Section dividers
-        sb.Draw(_pixel, new Rectangle(layout.RacingX, 0, 3, layout.ScreenH), new Color(80, 80, 80));
-        sb.Draw(_pixel, new Rectangle(layout.InfoX - 3, 0, 3, layout.ScreenH), new Color(80, 80, 80));
+        sb.Draw(_pixel, new Rectangle(layout.RacingX, 0, 3, layout.ScreenH), DividerColor);
+        sb.Draw(_pixel, new Rectangle(layout.InfoX - 3, 0, 3, layout.ScreenH), DividerColor);
     }
 
     private void ProcessHits()
@@ -226,7 +246,6 @@ public sealed class GameScene : IScene
 
     private void DrawObstacles(SpriteBatch sb, float cameraY, GameLayout layout)
     {
-        var obstacleColor = new Color(180, 100, 20);
 
         for (int i = 0; i < _obstacles.Length; i++)
         {
@@ -246,13 +265,25 @@ public sealed class GameScene : IScene
 
             int x = (int)obs.WorldLeft(layout.TrackLeft, layout.RacingW);
             int w = (int)(obs.WidthFraction * layout.RacingW);
-            sb.Draw(_pixel, new Rectangle(x, top, w, h), obstacleColor);
+            sb.Draw(_pixel, new Rectangle(x, top, w, h), ObstacleColor);
+        }
+    }
+
+    private void OnRemotePlayerUpdate(int playerIndex, float x, float y)
+        => _remotePlayers[playerIndex] = new Vector2(x, y);
+
+    private void DrawRemotePlayers(SpriteBatch sb, float cameraY)
+    {
+        foreach (var (_, pos) in _remotePlayers)
+        {
+            int sx = (int)(pos.X - Player.Width  / 2f);
+            int sy = (int)(pos.Y - Player.Height / 2f - cameraY);
+            sb.Draw(_pixel, new Rectangle(sx, sy, (int)Player.Width, (int)Player.Height), GhostColor);
         }
     }
 
     private void DrawNarrowings(SpriteBatch sb, float cameraY, GameLayout layout)
     {
-        var wallColor = new Color(160, 50, 50);
 
         foreach (ref readonly var n in _narrowings.AsSpan())
         {
@@ -270,10 +301,10 @@ public sealed class GameScene : IScene
             int rightInset = (int)n.RightInset(layout.RacingW);
 
             if (leftInset > 0)
-                sb.Draw(_pixel, new Rectangle(layout.RacingX, top, leftInset, h), wallColor);
+                sb.Draw(_pixel, new Rectangle(layout.RacingX, top, leftInset, h), WallColor);
 
             if (rightInset > 0)
-                sb.Draw(_pixel, new Rectangle(layout.RacingX + layout.RacingW - rightInset, top, rightInset, h), wallColor);
+                sb.Draw(_pixel, new Rectangle(layout.RacingX + layout.RacingW - rightInset, top, rightInset, h), WallColor);
         }
     }
 }

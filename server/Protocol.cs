@@ -13,6 +13,9 @@ public enum MsgType : byte
     C_LeaveLobby   = 0x05,
     C_ToggleReady  = 0x06,
     C_GameData     = 0x07,
+    C_PlayerUpdate = 0x08,   // float x, float y
+    C_Register     = 0x09,   // WriteStr(username), WriteStr(password)
+    C_Login        = 0x0A,   // WriteStr(username), WriteStr(password)
 
     // Server → Client
     S_LobbyList    = 0x10,
@@ -22,6 +25,9 @@ public enum MsgType : byte
     S_GameStart    = 0x14,
     S_Error        = 0x1F,
     S_GameData     = 0x20,
+    S_PlayerUpdate = 0x21,   // byte playerIndex, float x, float y
+    S_LoginOk      = 0x22,   // Write(int userId), WriteStr(username)
+    S_LoginFail    = 0x23,   // WriteStr(reason)
 }
 
 public static class Packet
@@ -31,6 +37,7 @@ public static class Packet
     public static void WriteStr(BinaryWriter w, string s)
     {
         byte[] b = Enc.GetBytes(s);
+        if (b.Length > 255) throw new ArgumentException($"String too long ({b.Length} bytes, max 255)");
         w.Write((byte)b.Length);
         w.Write(b);
     }

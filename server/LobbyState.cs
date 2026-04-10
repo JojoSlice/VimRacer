@@ -5,7 +5,9 @@ namespace VimRacerServer;
 internal sealed class PlayerInfo
 {
     public readonly NetPeer Peer;
-    public string Name    = "Player";
+    public int?   UserId;
+    public string Username = "Player";
+    public string Name     => Username;   // keeps existing RelayServer references working
     public int?   LobbyId;
     public bool   Ready;
 
@@ -101,4 +103,11 @@ internal sealed class LobbyRegistry
 
     public IEnumerable<Lobby> OpenLobbies() =>
         _lobbies.Values.Where(l => !l.Started);
+
+    public PlayerInfo? FindByUsername(string username) =>
+        _players.Values.FirstOrDefault(p =>
+            string.Equals(p.Username, username, StringComparison.OrdinalIgnoreCase));
+
+    public PlayerInfo? FindByUserId(int userId) =>
+        _players.Values.FirstOrDefault(p => p.UserId == userId);
 }

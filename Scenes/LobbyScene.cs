@@ -23,8 +23,10 @@ public sealed class LobbyScene : IScene
 
     // InLobby
     private LobbyInfo? _lobby;
-    private int        _myIndex;
-    private int        _gameSeed;
+
+    // Connection state
+    private float  _connectTimer;
+    private string _statusMsg = "";
 
     private static readonly Color CmdColor  = new(100, 210, 210);
     private static readonly Color DescColor = new(100, 100, 110);
@@ -41,14 +43,28 @@ public sealed class LobbyScene : IScene
 
     public void Initialize()
     {
+        // Subscribe BEFORE Connect() to avoid missing early events
         _network.OnLobbyList    += HandleLobbyList;
         _network.OnLobbyJoined  += HandleLobbyJoined;
         _network.OnLobbyUpdated += HandleLobbyUpdated;
         _network.OnLobbyLeft    += HandleLobbyLeft;
         _network.OnGameStart    += HandleGameStart;
+        _network.OnError        += HandleError;
 
-        _state = State.Connecting;
-        _network.Connect("Player");
+        _connectTimer = 0f;
+        _statusMsg    = "";
+
+        if (_network.IsConnected && _network.Session != null)
+        {
+            // Already authenticated — go straight to browsing
+            _state = State.Browsing;
+            _network.RequestLobbyList();
+        }
+        else
+        {
+            _state = State.Connecting;
+            _network.Connect();
+        }
     }
 
     public void LoadContent()
@@ -65,12 +81,22 @@ public sealed class LobbyScene : IScene
         _network.OnLobbyUpdated -= HandleLobbyUpdated;
         _network.OnLobbyLeft    -= HandleLobbyLeft;
         _network.OnGameStart    -= HandleGameStart;
+        _network.OnError        -= HandleError;
         _pixel.Dispose();
     }
 
     public void Update(GameTime gameTime)
     {
-        _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
+        float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _time += dt;
+
+        if (_state == State.Connecting)
+        {
+            _connectTimer += dt;
+            if (_connectTimer >= 10f && _statusMsg.Length == 0)
+                _statusMsg = "Connection failed. Is the server running?";
+        }
+
         _network.Poll();
     }
 
@@ -125,9 +151,8 @@ public sealed class LobbyScene : IScene
 
     private void HandleLobbyJoined(LobbyInfo info)
     {
-        _lobby   = info;
-        _myIndex = info.MyIndex;
-        _state   = State.InLobby;
+        _lobby = info;
+        _state = State.InLobby;
     }
 
     private void HandleLobbyUpdated(PlayerSlot[] players)
@@ -145,8 +170,12 @@ public sealed class LobbyScene : IScene
 
     private void HandleGameStart(int seed)
     {
-        _gameSeed = seed;
-        _scenes.Transition(new GameScene(_scenes, _game));
+        _scenes.Transition(new GameScene(_scenes, _game, seed, _network));
+    }
+
+    private void HandleError(string msg)
+    {
+        _statusMsg = msg;
     }
 
     // ── Draw ─────────────────────────────────────────────────────────────────
@@ -171,12 +200,23 @@ public sealed class LobbyScene : IScene
 
     private void DrawConnecting(SpriteBatch sb, Viewport vp, float lh)
     {
-        int dots  = (int)(_time * 2f) % 4;
-        string s  = "CONNECTING" + new string('.', dots);
+        string s;
+        Color  color;
+        if (_statusMsg.Length > 0)
+        {
+            s     = _statusMsg;
+            color = new Color(220, 80, 80);
+        }
+        else
+        {
+            int dots = (int)(_time * 2f) % 4;
+            s     = "CONNECTING" + new string('.', dots);
+            color = CmdColor;
+        }
         Vector2 sz = _font.MeasureString(s);
         sb.DrawString(_font, s,
             new Vector2((vp.Width - sz.X) / 2f, (vp.Height - sz.Y) / 2f),
-            CmdColor);
+            color);
     }
 
     private void DrawBrowsing(SpriteBatch sb, Viewport vp, float lh)
@@ -305,7 +345,7 @@ public sealed class LobbyScene : IScene
         for (int i = 0; i < MaxPlayers; i++)
         {
             string tag = $"[{i + 1}]";
-            bool   isMe = i == _myIndex;
+            bool   isMe = i == _lobby.MyIndex;
             sb.DrawString(_font, tag, new Vector2(tx, ty), isMe ? CmdColor : DescColor);
 
             float nameX = tx + tagW;
