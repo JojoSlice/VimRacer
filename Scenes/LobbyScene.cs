@@ -29,11 +29,11 @@ public sealed class LobbyScene : IScene
     private float  _connectTimer;
     private string _statusMsg = "";
 
-    private static readonly Color CmdColor  = new(100, 210, 210);
-    private static readonly Color DescColor = new(100, 100, 110);
-    private static readonly Color DimColor  = new(80, 80, 80);
-    private static readonly Color PanelBg   = new(20, 20, 30);
-    private static readonly Color PageBg    = new(10, 10, 14);
+    private static readonly Color CmdColor  = SceneUi.CmdColor;
+    private static readonly Color DescColor = SceneUi.DescColor;
+    private static readonly Color DimColor  = SceneUi.DimColor;
+    private static readonly Color PanelBg   = SceneUi.PanelBg;
+    private static readonly Color PageBg    = SceneUi.PageBg;
 
     public LobbyScene(SceneManager scenes, Game game, NetworkManager network)
     {
@@ -420,23 +420,13 @@ public sealed class LobbyScene : IScene
 
     // ── Draw helpers ─────────────────────────────────────────────────────────
 
-    private void DrawPanel(SpriteBatch sb, float x, float y, float w, float h)
-    {
-        sb.Draw(_pixel, new Rectangle((int)x, (int)y, (int)w, (int)h), PanelBg);
-        sb.Draw(_pixel, new Rectangle((int)x, (int)y, (int)w, 2), Color.Cyan);
-    }
+    private void DrawPanel(SpriteBatch sb, float x, float y, float w, float h) =>
+        SceneUi.DrawPanel(sb, _pixel, x, y, w, h);
 
     private void DrawCommandList(SpriteBatch sb,
                                  (string Cmd, string Desc)[] cmds,
-                                 float tx, float ty, float cmdColW)
-    {
-        foreach (var (cmd, desc) in cmds)
-        {
-            sb.DrawString(_font, cmd,  new Vector2(tx, ty), CmdColor);
-            sb.DrawString(_font, desc, new Vector2(tx + cmdColW + 16f, ty), DescColor);
-            ty += _font.LineSpacing;
-        }
-    }
+                                 float tx, float ty, float cmdColW) =>
+        SceneUi.DrawCommandList(sb, _font, cmds, tx, ty, cmdColW);
 
     private float MeasureLobbyListWidth()
     {

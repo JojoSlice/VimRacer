@@ -111,6 +111,7 @@ internal sealed class RelayServer : INetEventListener
 
         player.UserId   = userId;
         player.Username = username.ToLowerInvariant();
+        _registry.IndexUserId(player, userId);
         Console.WriteLine($"    Registered '{player.Username}' (id={userId})");
         Send(player.Peer, Packet.Build(MsgType.S_LoginOk, w =>
         {
@@ -141,6 +142,7 @@ internal sealed class RelayServer : INetEventListener
 
         player.UserId   = userId;
         player.Username = displayName;
+        _registry.IndexUserId(player, userId);
         Console.WriteLine($"    Login '{player.Username}' (id={userId})");
         Send(player.Peer, Packet.Build(MsgType.S_LoginOk, w =>
         {

@@ -20,10 +20,10 @@ public sealed class LoginScene : IScene
     private bool   _statusIsError;
     private float  _connectTimer;
 
-    private static readonly Color CmdColor   = new(100, 210, 210);
-    private static readonly Color DescColor  = new(100, 100, 110);
-    private static readonly Color PanelBg    = new(20, 20, 30);
-    private static readonly Color PageBg     = new(10, 10, 14);
+    private static readonly Color CmdColor   = SceneUi.CmdColor;
+    private static readonly Color DescColor  = SceneUi.DescColor;
+    private static readonly Color PanelBg    = SceneUi.PanelBg;
+    private static readonly Color PageBg     = SceneUi.PageBg;
     private static readonly Color ErrorColor = new(220, 80, 80);
 
     public LoginScene(SceneManager scenes, Game game, NetworkManager network)
@@ -195,9 +195,7 @@ public sealed class LoginScene : IScene
         float boxX = (vp.Width  - boxW) / 2f;
         float boxY = (vp.Height - boxH) / 2f;
 
-        // Panel background + accent
-        sb.Draw(_pixel, new Rectangle((int)boxX, (int)boxY, (int)boxW, (int)boxH), PanelBg);
-        sb.Draw(_pixel, new Rectangle((int)boxX, (int)boxY, (int)boxW, 2), Color.Cyan);
+        SceneUi.DrawPanel(sb, _pixel, boxX, boxY, boxW, boxH);
 
         float tx = boxX + PadX;
         float ty = boxY + PadY;
@@ -214,12 +212,7 @@ public sealed class LoginScene : IScene
         }
 
         ty += SepH;
-        foreach (var (cmd, desc) in cmds)
-        {
-            sb.DrawString(_font, cmd,  new Vector2(tx, ty), CmdColor);
-            sb.DrawString(_font, desc, new Vector2(tx + cmdColW + 16f, ty), DescColor);
-            ty += lh;
-        }
+        SceneUi.DrawCommandList(sb, _font, cmds, tx, ty, cmdColW);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

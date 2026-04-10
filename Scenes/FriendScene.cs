@@ -18,12 +18,7 @@ public sealed class FriendScene : IScene
     private string        _statusMsg    = "";
     private bool          _statusIsError;
 
-    private static readonly Color CmdColor   = new(100, 210, 210);
-    private static readonly Color DescColor  = new(100, 100, 110);
-    private static readonly Color DimColor   = new(80, 80, 80);
-    private static readonly Color PanelBg    = new(20, 20, 30);
-    private static readonly Color PageBg     = new(10, 10, 14);
-    private static readonly Color OnlineColor = new(80, 220, 80);
+    private static readonly Color OnlineColor  = new(80, 220, 80);
     private static readonly Color PendingColor = new(255, 200, 60);
 
     public FriendScene(SceneManager scenes, Game game, NetworkManager network)
@@ -111,15 +106,17 @@ public sealed class FriendScene : IScene
         _network.RequestFriendList();
     }
 
-    private void HandleFriendOnline(string username)
-    {
-        // Refresh list to show updated online status
-        _network.RequestFriendList();
-    }
+    private void HandleFriendOnline(string username)  => SetFriendOnline(username, online: true);
+    private void HandleFriendOffline(string username) => SetFriendOnline(username, online: false);
 
-    private void HandleFriendOffline(string username)
+    private void SetFriendOnline(string username, bool online)
     {
-        _network.RequestFriendList();
+        for (int i = 0; i < _friends.Length; i++)
+            if (string.Equals(_friends[i].Username, username, StringComparison.OrdinalIgnoreCase))
+            {
+                _friends[i] = _friends[i] with { Online = online };
+                return;
+            }
     }
 
     private void HandleError(string msg) => SetStatus(msg, error: true);
@@ -138,7 +135,7 @@ public sealed class FriendScene : IScene
         float lh  = _font.LineSpacing;
 
         sb.Begin();
-        sb.Draw(_pixel, new Rectangle(0, 0, vp.Width, vp.Height), PageBg);
+        sb.Draw(_pixel, new Rectangle(0, 0, vp.Width, vp.Height), SceneUi.PageBg);
         DrawPanel(sb, vp, lh);
         sb.End();
     }
@@ -187,8 +184,7 @@ public sealed class FriendScene : IScene
         float boxX = (vp.Width  - boxW) / 2f;
         float boxY = (vp.Height - boxH) / 2f;
 
-        sb.Draw(_pixel, new Rectangle((int)boxX, (int)boxY, (int)boxW, (int)boxH), PanelBg);
-        sb.Draw(_pixel, new Rectangle((int)boxX, (int)boxY, (int)boxW, 2), Color.Cyan);
+        SceneUi.DrawPanel(sb, _pixel, boxX, boxY, boxW, boxH);
 
         float tx = boxX + PadX;
         float ty = boxY + PadY;
@@ -198,7 +194,7 @@ public sealed class FriendScene : IScene
 
         if (_friends.Length == 0)
         {
-            sb.DrawString(_font, "  (no friends yet)", new Vector2(tx, ty), DimColor);
+            sb.DrawString(_font, "  (no friends yet)", new Vector2(tx, ty), SceneUi.DimColor);
             ty += lh;
         }
         else
@@ -226,7 +222,7 @@ public sealed class FriendScene : IScene
                 else
                 {
                     tag      = "[-----] ";
-                    tagColor = DimColor;
+                    tagColor = SceneUi.DimColor;
                 }
 
                 sb.DrawString(_font, cursor, new Vector2(tx, ty), nc);
@@ -246,12 +242,6 @@ public sealed class FriendScene : IScene
         }
 
         ty += SepH;
-
-        foreach (var (cmd, desc) in cmds)
-        {
-            sb.DrawString(_font, cmd,  new Vector2(tx, ty), CmdColor);
-            sb.DrawString(_font, desc, new Vector2(tx + cmdColW + 16f, ty), DescColor);
-            ty += lh;
-        }
+        SceneUi.DrawCommandList(sb, _font, cmds, tx, ty, cmdColW);
     }
 }

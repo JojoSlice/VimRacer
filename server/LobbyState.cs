@@ -44,8 +44,9 @@ internal sealed class Lobby
 
 internal sealed class LobbyRegistry
 {
-    private readonly Dictionary<int, Lobby>          _lobbies = new();
-    private readonly Dictionary<NetPeer, PlayerInfo> _players = new();
+    private readonly Dictionary<int, Lobby>          _lobbies        = new();
+    private readonly Dictionary<NetPeer, PlayerInfo> _players        = new();
+    private readonly Dictionary<int, PlayerInfo>     _playersByUserId = new();
     private int _nextId = 1;
 
     public PlayerInfo GetOrCreate(NetPeer peer)
@@ -61,7 +62,15 @@ internal sealed class LobbyRegistry
     public bool TryGet(NetPeer peer, out PlayerInfo player) =>
         _players.TryGetValue(peer, out player!);
 
-    public void Remove(NetPeer peer) => _players.Remove(peer);
+    public void IndexUserId(PlayerInfo player, int userId) =>
+        _playersByUserId[userId] = player;
+
+    public void Remove(NetPeer peer)
+    {
+        if (_players.TryGetValue(peer, out var p) && p.UserId.HasValue)
+            _playersByUserId.Remove(p.UserId.Value);
+        _players.Remove(peer);
+    }
 
     public Lobby CreateLobby(PlayerInfo host, string name, bool isPrivate = false)
     {
@@ -117,5 +126,5 @@ internal sealed class LobbyRegistry
             string.Equals(p.Username, username, StringComparison.OrdinalIgnoreCase));
 
     public PlayerInfo? FindByUserId(int userId) =>
-        _players.Values.FirstOrDefault(p => p.UserId == userId);
+        _playersByUserId.TryGetValue(userId, out var p) ? p : null;
 }
