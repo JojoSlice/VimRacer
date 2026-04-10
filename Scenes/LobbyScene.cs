@@ -22,7 +22,8 @@ public sealed class LobbyScene : IScene
     private int          _selectedIndex;
 
     // InLobby
-    private LobbyInfo? _lobby;
+    private LobbyInfo?          _lobby;
+    private InviteNotification? _pendingInvite;
 
     // Connection state
     private float  _connectTimer;
@@ -50,6 +51,7 @@ public sealed class LobbyScene : IScene
         _network.OnLobbyLeft    += HandleLobbyLeft;
         _network.OnGameStart    += HandleGameStart;
         _network.OnError        += HandleError;
+        _network.OnLobbyInvite  += HandleLobbyInvite;
 
         _connectTimer = 0f;
         _statusMsg    = "";
@@ -82,6 +84,7 @@ public sealed class LobbyScene : IScene
         _network.OnLobbyLeft    -= HandleLobbyLeft;
         _network.OnGameStart    -= HandleGameStart;
         _network.OnError        -= HandleError;
+        _network.OnLobbyInvite  -= HandleLobbyInvite;
         _pixel.Dispose();
     }
 
@@ -103,6 +106,20 @@ public sealed class LobbyScene : IScene
     // Called by Game1.ExecuteCommand when this scene is active
     public void HandleCommand(string cmd)
     {
+        // Invite responses available from any state
+        if (cmd == ":accept" && _pendingInvite != null)
+        {
+            _network.AcceptInvite(_pendingInvite.LobbyId);
+            _pendingInvite = null;
+            return;
+        }
+        if (cmd == ":decline" && _pendingInvite != null)
+        {
+            _network.DeclineInvite(_pendingInvite.LobbyId);
+            _pendingInvite = null;
+            return;
+        }
+
         switch (_state)
         {
             case State.Browsing:
@@ -142,6 +159,12 @@ public sealed class LobbyScene : IScene
                     _network.ToggleReady();
                 else if (cmd == ":leave")
                     _network.LeaveLobby();
+                else if (cmd.StartsWith(":invite "))
+                {
+                    string target = cmd[8..].Trim();
+                    if (target.Length > 0)
+                        _network.InvitePlayer(target);
+                }
                 break;
         }
     }
@@ -184,6 +207,11 @@ public sealed class LobbyScene : IScene
         _statusMsg = msg;
     }
 
+    private void HandleLobbyInvite(InviteNotification invite)
+    {
+        _pendingInvite = invite; // newest invite wins
+    }
+
     // ── Draw ─────────────────────────────────────────────────────────────────
 
     public void Draw(SpriteBatch sb)
@@ -201,6 +229,7 @@ public sealed class LobbyScene : IScene
             case State.InLobby:    DrawInLobby(sb, vp, lh);    break;
         }
 
+        DrawInviteOverlay(sb);
         sb.End();
     }
 
@@ -314,8 +343,9 @@ public sealed class LobbyScene : IScene
 
         (string Cmd, string Desc)[] cmds =
         [
-            (":ready", "toggle ready"),
-            (":leave", "leave lobby"),
+            (":ready",          "toggle ready"),
+            (":invite username","invite player"),
+            (":leave",          "leave lobby"),
         ];
 
         string title = _lobby.IsPrivate
@@ -379,6 +409,13 @@ public sealed class LobbyScene : IScene
 
         ty += SepH;
         DrawCommandList(sb, cmds, tx, ty, cmdColW);
+    }
+
+    private void DrawInviteOverlay(SpriteBatch sb)
+    {
+        if (_pendingInvite == null) return;
+        string line = $"Invite from {_pendingInvite.FromUsername}: \"{_pendingInvite.LobbyName}\"   :accept / :decline";
+        sb.DrawString(_font, line, new Vector2(8f, 6f), new Color(255, 220, 80));
     }
 
     // ── Draw helpers ─────────────────────────────────────────────────────────

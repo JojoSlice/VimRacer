@@ -61,8 +61,11 @@ internal sealed class RelayServer : INetEventListener
             case MsgType.C_JoinLobby:    HandleJoinLobby(player, br);        break;
             case MsgType.C_LeaveLobby:   HandleLeaveLobby(player);           break;
             case MsgType.C_ToggleReady:  HandleToggleReady(player);          break;
-            case MsgType.C_GameData:     HandleGameData(player, data);       break;
-            case MsgType.C_PlayerUpdate: HandlePlayerUpdate(player, data);   break;
+            case MsgType.C_InviteFriend:  HandleInviteFriend(player, br);    break;
+            case MsgType.C_AcceptInvite:  HandleAcceptInvite(player, br);    break;
+            case MsgType.C_DeclineInvite: HandleDeclineInvite(player, br);   break;
+            case MsgType.C_GameData:      HandleGameData(player, data);      break;
+            case MsgType.C_PlayerUpdate:  HandlePlayerUpdate(player, data);  break;
             // C_Hello (0x01) intentionally unhandled — kept in enum to avoid
             // misrouting stale packets from older clients.
         }
@@ -183,11 +186,10 @@ internal sealed class RelayServer : INetEventListener
             return;
         }
 
-        if (lobby.IsPrivate)
+        if (lobby.IsPrivate && (player.UserId == null || !lobby.IsInvited(player.UserId.Value)))
         {
-            // Will be refined in Feature 3 to allow invited users through
             _registry.Leave(player);
-            SendError(player.Peer, "This lobby is private.");
+            SendError(player.Peer, "This lobby is private. You need an invitation.");
             return;
         }
 
@@ -201,6 +203,70 @@ internal sealed class RelayServer : INetEventListener
         if (!RequireLogin(player)) return;
         NotifyLobbyOnExit(player);
         Send(player.Peer, Packet.Simple(MsgType.S_LobbyLeft));
+    }
+
+    private void HandleInviteFriend(PlayerInfo player, BinaryReader r)
+    {
+        if (!RequireLogin(player)) return;
+        if (player.LobbyId == null) { SendError(player.Peer, "You are not in a lobby."); return; }
+
+        string targetUsername = Packet.ReadStr(r);
+        var    target         = _registry.FindByUsername(targetUsername);
+
+        if (target == null) { SendError(player.Peer, "Player is not online."); return; }
+        if (target == player) { SendError(player.Peer, "Cannot invite yourself."); return; }
+
+        var lobby = _registry.LobbyOf(player)!;
+
+        if (target.LobbyId == lobby.Id) { SendError(player.Peer, "Player is already in this lobby."); return; }
+
+        if (target.UserId.HasValue)
+            lobby.InvitedUserIds.Add(target.UserId.Value);
+
+        Send(target.Peer, Packet.Build(MsgType.S_LobbyInvite, w =>
+        {
+            Packet.WriteStr(w, player.Username);
+            w.Write(lobby.Id);
+            Packet.WriteStr(w, lobby.Name);
+        }));
+        Console.WriteLine($"    '{player.Username}' invited '{target.Username}' to lobby '{lobby.Name}'");
+    }
+
+    private void HandleAcceptInvite(PlayerInfo player, BinaryReader r)
+    {
+        if (!RequireLogin(player)) return;
+        if (player.LobbyId != null) { SendError(player.Peer, "Already in a lobby."); return; }
+
+        int lobbyId = r.ReadInt32();
+
+        if (!_registry.TryGetLobby(lobbyId, out var lobby) || lobby.Started)
+        {
+            SendError(player.Peer, "Lobby no longer available.");
+            return;
+        }
+
+        if (lobby.IsPrivate && (player.UserId == null || !lobby.IsInvited(player.UserId.Value)))
+        {
+            SendError(player.Peer, "You were not invited to this lobby.");
+            return;
+        }
+
+        if (!_registry.TryJoinLobby(player, lobbyId, out lobby))
+        {
+            SendError(player.Peer, "Lobby is full.");
+            return;
+        }
+
+        Console.WriteLine($"    '{player.Username}' accepted invite to lobby '{lobby.Name}'");
+        SendLobbyJoined(player, lobby);
+        SendLobbyUpdated(lobby);
+    }
+
+    private void HandleDeclineInvite(PlayerInfo player, BinaryReader r)
+    {
+        int lobbyId = r.ReadInt32();
+        if (player.UserId.HasValue && _registry.TryGetLobby(lobbyId, out var lobby))
+            lobby.InvitedUserIds.Remove(player.UserId.Value);
     }
 
     // Handles lobby state cleanup when a player exits (disconnect or leave).

@@ -11,6 +11,7 @@ public record LobbyEntry(int Id, string Name, int Slots, bool IsPrivate);
 public record PlayerSlot(string Name, bool Ready);
 public record LobbyInfo(int Id, string Name, PlayerSlot[] Players, int MyIndex, bool IsPrivate);
 public record LoginResult(int UserId, string Username);
+public record InviteNotification(string FromUsername, int LobbyId, string LobbyName);
 
 public sealed class NetworkManager : INetworkTransport, INetEventListener
 {
@@ -55,8 +56,11 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
     public event Action<int>?               OnGameStart;    // int = seed
     public event Action<string>?            OnError;
     public event Action<int, float, float>? OnPlayerUpdate; // (playerIndex, x, y)
-    public event Action<LoginResult>?       OnLoginOk;
-    public event Action<string>?            OnLoginFail;
+    public event Action<LoginResult>?         OnLoginOk;
+    public event Action<string>?              OnLoginFail;
+    public event Action<InviteNotification>?  OnLobbyInvite;
+
+    public InviteNotification? PendingInvite { get; private set; }
 
     // ── Lobby methods ────────────────────────────────────────────────────────
 
@@ -87,6 +91,21 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
 
     public void ToggleReady() =>
         SendRaw(Packet.Simple(MsgType.C_ToggleReady));
+
+    public void InvitePlayer(string username) =>
+        SendRaw(Packet.Build(MsgType.C_InviteFriend, w => Packet.WriteStr(w, username)));
+
+    public void AcceptInvite(int lobbyId)
+    {
+        PendingInvite = null;
+        SendRaw(Packet.Build(MsgType.C_AcceptInvite, w => w.Write(lobbyId)));
+    }
+
+    public void DeclineInvite(int lobbyId)
+    {
+        PendingInvite = null;
+        SendRaw(Packet.Build(MsgType.C_DeclineInvite, w => w.Write(lobbyId)));
+    }
 
     public void SendPosition(float x, float y) =>
         SendRaw(Packet.Build(MsgType.C_PlayerUpdate, w => { w.Write(x); w.Write(y); }));
@@ -128,8 +147,9 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
             case MsgType.S_GameData:     OnReceive?.Invoke(data);  break;
             case MsgType.S_PlayerUpdate: HandlePlayerUpdate(br);                    break;
             case MsgType.S_Error:        OnError?.Invoke(Packet.ReadStr(br));       break;
-            case MsgType.S_LoginOk:      HandleLoginOk(br);                         break;
-            case MsgType.S_LoginFail:    OnLoginFail?.Invoke(Packet.ReadStr(br));   break;
+            case MsgType.S_LoginOk:     HandleLoginOk(br);                        break;
+            case MsgType.S_LoginFail:   OnLoginFail?.Invoke(Packet.ReadStr(br));  break;
+            case MsgType.S_LobbyInvite: HandleLobbyInvite(br);                    break;
         }
     }
 
@@ -175,6 +195,15 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
     {
         int seed = r.ReadInt32();
         OnGameStart?.Invoke(seed);
+    }
+
+    private void HandleLobbyInvite(BinaryReader r)
+    {
+        string from    = Packet.ReadStr(r);
+        int    lobbyId = r.ReadInt32();
+        string name    = Packet.ReadStr(r);
+        PendingInvite  = new InviteNotification(from, lobbyId, name);
+        OnLobbyInvite?.Invoke(PendingInvite);
     }
 
     private void HandleLoginOk(BinaryReader r)

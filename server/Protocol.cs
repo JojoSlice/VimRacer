@@ -15,7 +15,10 @@ public enum MsgType : byte
     C_GameData     = 0x07,
     C_PlayerUpdate = 0x08,   // float x, float y
     C_Register     = 0x09,   // WriteStr(username), WriteStr(password)
-    C_Login        = 0x0A,   // WriteStr(username), WriteStr(password)
+    C_Login         = 0x0A,   // WriteStr(username), WriteStr(password)
+    C_InviteFriend  = 0x0B,   // WriteStr(targetUsername)
+    C_AcceptInvite  = 0x0C,   // Write(int lobbyId)
+    C_DeclineInvite = 0x0D,   // Write(int lobbyId)
 
     // Server → Client
     S_LobbyList    = 0x10,
@@ -28,6 +31,7 @@ public enum MsgType : byte
     S_PlayerUpdate = 0x21,   // byte playerIndex, float x, float y
     S_LoginOk      = 0x22,   // Write(int userId), WriteStr(username)
     S_LoginFail    = 0x23,   // WriteStr(reason)
+    S_LobbyInvite  = 0x24,   // WriteStr(fromUsername), Write(int lobbyId), WriteStr(lobbyName)
 }
 
 public static class Packet
