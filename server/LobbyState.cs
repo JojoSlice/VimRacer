@@ -20,6 +20,8 @@ internal sealed class Lobby
 
     public readonly int              Id;
     public readonly string           Name;
+    public readonly bool             IsPrivate;
+    public readonly HashSet<int>     InvitedUserIds = new(); // used by Feature 3
     public readonly List<PlayerInfo> Players = new();
     public bool Started;
 
@@ -27,10 +29,13 @@ internal sealed class Lobby
     public bool IsFull  => Players.Count >= MaxPlayers;
     public PlayerInfo Host => Players[0];
 
-    public Lobby(int id, string name, PlayerInfo host)
+    public bool IsInvited(int userId) => InvitedUserIds.Contains(userId);
+
+    public Lobby(int id, string name, PlayerInfo host, bool isPrivate)
     {
-        Id   = id;
-        Name = name;
+        Id        = id;
+        Name      = name;
+        IsPrivate = isPrivate;
         Players.Add(host);
     }
 
@@ -58,14 +63,17 @@ internal sealed class LobbyRegistry
 
     public void Remove(NetPeer peer) => _players.Remove(peer);
 
-    public Lobby CreateLobby(PlayerInfo host, string name)
+    public Lobby CreateLobby(PlayerInfo host, string name, bool isPrivate = false)
     {
-        var lobby = new Lobby(_nextId++, name, host);
+        var lobby = new Lobby(_nextId++, name, host, isPrivate);
         _lobbies[lobby.Id] = lobby;
         host.LobbyId = lobby.Id;
         host.Ready   = false;
         return lobby;
     }
+
+    public bool TryGetLobby(int id, out Lobby lobby) =>
+        _lobbies.TryGetValue(id, out lobby!);
 
     public bool TryJoinLobby(PlayerInfo joiner, int lobbyId, out Lobby lobby)
     {
@@ -101,8 +109,8 @@ internal sealed class LobbyRegistry
         }
     }
 
-    public IEnumerable<Lobby> OpenLobbies() =>
-        _lobbies.Values.Where(l => !l.Started);
+    public IEnumerable<Lobby> PublicOpenLobbies() =>
+        _lobbies.Values.Where(l => !l.Started && !l.IsPrivate);
 
     public PlayerInfo? FindByUsername(string username) =>
         _players.Values.FirstOrDefault(p =>

@@ -145,9 +145,10 @@ internal sealed class RelayServer : INetEventListener
         if (!RequireLogin(player)) return;
         if (player.LobbyId != null) { SendError(player.Peer, "Already in a lobby."); return; }
 
-        string name  = Packet.ReadStr(r);
-        var    lobby = _registry.CreateLobby(player, name);
-        Console.WriteLine($"    '{player.Name}' created lobby '{name}' (id={lobby.Id})");
+        string name      = Packet.ReadStr(r);
+        bool   isPrivate = r.ReadBoolean();
+        var    lobby     = _registry.CreateLobby(player, name, isPrivate);
+        Console.WriteLine($"    '{player.Name}' created lobby '{name}' (id={lobby.Id}, private={isPrivate})");
         SendLobbyJoined(player, lobby);
     }
 
@@ -155,7 +156,7 @@ internal sealed class RelayServer : INetEventListener
     {
         if (!RequireLogin(player)) return;
 
-        var lobbies = _registry.OpenLobbies().ToArray();
+        var lobbies = _registry.PublicOpenLobbies().ToArray();
         var msg = Packet.Build(MsgType.S_LobbyList, w =>
         {
             w.Write((short)lobbies.Length);
@@ -164,6 +165,7 @@ internal sealed class RelayServer : INetEventListener
                 w.Write(l.Id);
                 Packet.WriteStr(w, l.Name);
                 w.Write((byte)l.Slots);
+                w.Write(l.IsPrivate); // always false from public list; included for wire-format consistency
             }
         });
         Send(player.Peer, msg);
@@ -178,6 +180,14 @@ internal sealed class RelayServer : INetEventListener
         if (!_registry.TryJoinLobby(player, lobbyId, out var lobby))
         {
             SendError(player.Peer, "Lobby not found or full.");
+            return;
+        }
+
+        if (lobby.IsPrivate)
+        {
+            // Will be refined in Feature 3 to allow invited users through
+            _registry.Leave(player);
+            SendError(player.Peer, "This lobby is private.");
             return;
         }
 
@@ -269,6 +279,7 @@ internal sealed class RelayServer : INetEventListener
                 w.Write(p.Ready);
             }
             w.Write((byte)myIndex);
+            w.Write(lobby.IsPrivate);
         });
         Send(recipient.Peer, msg);
     }

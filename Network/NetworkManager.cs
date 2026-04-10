@@ -7,9 +7,9 @@ using LiteNetLib;
 namespace VimRacer;
 
 // DTOs
-public record LobbyEntry(int Id, string Name, int Slots);
+public record LobbyEntry(int Id, string Name, int Slots, bool IsPrivate);
 public record PlayerSlot(string Name, bool Ready);
-public record LobbyInfo(int Id, string Name, PlayerSlot[] Players, int MyIndex);
+public record LobbyInfo(int Id, string Name, PlayerSlot[] Players, int MyIndex, bool IsPrivate);
 public record LoginResult(int UserId, string Username);
 
 public sealed class NetworkManager : INetworkTransport, INetEventListener
@@ -76,8 +76,8 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
     public void RequestLobbyList() =>
         SendRaw(Packet.Simple(MsgType.C_ListLobbies));
 
-    public void CreateLobby(string name) =>
-        SendRaw(Packet.Build(MsgType.C_CreateLobby, w => Packet.WriteStr(w, name)));
+    public void CreateLobby(string name, bool isPrivate = false) =>
+        SendRaw(Packet.Build(MsgType.C_CreateLobby, w => { Packet.WriteStr(w, name); w.Write(isPrivate); }));
 
     public void JoinLobby(int lobbyId) =>
         SendRaw(Packet.Build(MsgType.C_JoinLobby, w => w.Write(lobbyId)));
@@ -148,8 +148,9 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
         {
             int    id    = r.ReadInt32();
             string name  = Packet.ReadStr(r);
-            int    slots = r.ReadByte();
-            entries[i]   = new LobbyEntry(id, name, slots);
+            int  slots     = r.ReadByte();
+            bool isPrivate = r.ReadBoolean();
+            entries[i] = new LobbyEntry(id, name, slots, isPrivate);
         }
         OnLobbyList?.Invoke(entries);
     }
@@ -159,8 +160,9 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
         int    id        = r.ReadInt32();
         string lobbyName = Packet.ReadStr(r);
         var    players   = ReadPlayerSlots(r);
-        int    myIndex   = r.ReadByte();
-        OnLobbyJoined?.Invoke(new LobbyInfo(id, lobbyName, players, myIndex));
+        int  myIndex   = r.ReadByte();
+        bool isPrivate = r.ReadBoolean();
+        OnLobbyJoined?.Invoke(new LobbyInfo(id, lobbyName, players, myIndex, isPrivate));
     }
 
     private void HandleLobbyUpdated(BinaryReader r)

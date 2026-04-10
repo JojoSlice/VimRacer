@@ -111,11 +111,17 @@ public sealed class LobbyScene : IScene
                     if (_lobbies.Length > 0)
                         _network.JoinLobby(_lobbies[_selectedIndex].Id);
                 }
+                else if (cmd.StartsWith(":create-private"))
+                {
+                    string name = cmd.Length > 16 ? cmd[16..].Trim() : "";
+                    if (name.Length == 0) name = "Private game";
+                    _network.CreateLobby(name, isPrivate: true);
+                }
                 else if (cmd.StartsWith(":create"))
                 {
-                    string name = cmd.Length > 8 ? cmd[8..].Trim() : "Player's game";
+                    string name = cmd.Length > 8 ? cmd[8..].Trim() : "";
                     if (name.Length == 0) name = "Player's game";
-                    _network.CreateLobby(name);
+                    _network.CreateLobby(name, isPrivate: false);
                 }
                 else if (cmd == ":j")
                 {
@@ -223,12 +229,13 @@ public sealed class LobbyScene : IScene
     {
         (string Cmd, string Desc)[] cmds =
         [
-            (":create", "new lobby"),
-            (":j / :k", "navigate"),
-            (":join",   "join selected"),
-            (":refresh","refresh"),
-            (":menu",   "main menu"),
-            (":q",      "quit"),
+            (":create name",         "new public lobby"),
+            (":create-private name", "new private lobby"),
+            (":j / :k",              "navigate"),
+            (":join",                "join selected"),
+            (":refresh",             "refresh"),
+            (":menu",                "main menu"),
+            (":q",                   "quit"),
         ];
 
         // Measure panel width
@@ -281,7 +288,8 @@ public sealed class LobbyScene : IScene
                 string cursor = sel ? "> " : "  ";
                 Color  nc     = sel ? Color.White : new Color(150, 150, 150);
 
-                sb.DrawString(_font, cursor + entry.Name, new Vector2(tx, ty), nc);
+                string label = (entry.IsPrivate ? "[P] " : "    ") + entry.Name;
+                sb.DrawString(_font, cursor + label, new Vector2(tx, ty), nc);
 
                 string slots = $"{entry.Slots}/6";
                 float sw = _font.MeasureString(slots).X;
@@ -310,7 +318,9 @@ public sealed class LobbyScene : IScene
             (":leave", "leave lobby"),
         ];
 
-        string title = $"LOBBY: {_lobby.Name}";
+        string title = _lobby.IsPrivate
+            ? $"LOBBY: {_lobby.Name} [PRIVATE]"
+            : $"LOBBY: {_lobby.Name}";
 
         float cmdColW = 0f;
         foreach (var (c, _) in cmds)
@@ -395,7 +405,10 @@ public sealed class LobbyScene : IScene
     {
         float w = _font.MeasureString("(empty)").X;
         foreach (var e in _lobbies)
-            w = MathF.Max(w, _font.MeasureString("  " + e.Name + "  2/2").X);
+        {
+            string prefix = e.IsPrivate ? "[P] " : "    ";
+            w = MathF.Max(w, _font.MeasureString("  " + prefix + e.Name + "  2/6").X);
+        }
         return w;
     }
 }
