@@ -23,8 +23,15 @@ public sealed class GameScene : IScene
     private readonly List<CollisionHit> _hits      = new();
     private ColliderBody                _playerBody = null!;
 
-    private float _collisionCooldown = 0f;
+    private BulletManager                      _bullets           = null!;
+    private readonly Dictionary<ColliderBody, int> _obstacleBodyIndex = new();
+    private readonly HashSet<int>              _destroyedObstacles = new();
+
+    private float _collisionCooldown;
     private const float CollisionCooldownDuration = 1.0f;
+
+    private float      _elapsedTime;
+    private GameLayout _layout;
 
     private const float TrackStart   = 30000f; // player starts near bottom
     private const float FinishLineY  = 200f;   // finish line near top
@@ -48,13 +55,17 @@ public sealed class GameScene : IScene
 
         _playerBody = _collision.Add(CollisionLayer.Player);
 
-        foreach (var obs in _obstacles)
+        for (int i = 0; i < _obstacles.Length; i++)
         {
+            ref readonly var obs = ref _obstacles[i];
             var b = _collision.Add(CollisionLayer.Obstacle);
             b.Bounds = new Aabb(
                 obs.WorldLeft(layout.TrackLeft, layout.RacingW), obs.WorldTop,
                 obs.WorldRight(layout.TrackLeft, layout.RacingW), obs.WorldBottom);
+            _obstacleBodyIndex[b] = i;
         }
+
+        _bullets = new BulletManager(_collision);
 
         foreach (var n in _narrowings)
         {
@@ -101,32 +112,44 @@ public sealed class GameScene : IScene
                 break;
         }
 
-        var layout = GameLayout.FromViewport(_game.GraphicsDevice.Viewport);
+        _layout = GameLayout.FromViewport(_game.GraphicsDevice.Viewport);
+        var layout = _layout;
 
         float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _elapsedTime += dt;
         _collisionCooldown = MathF.Max(0f, _collisionCooldown - dt);
+
+        _player.Update(gameTime, layout.TrackLeft, layout.TrackRight);
 
         _playerBody.Bounds = Aabb.FromCenter(
             _player.Position.X, _player.Position.Y, Player.Width, Player.Height);
 
-        _player.Update(gameTime, layout.TrackLeft, layout.TrackRight);
+        if (InputSystem.Shoot && _combo.HasBullet)
+        {
+            _combo.UseBullet();
+            _bullets.Spawn(_player.Position.X, _player.Position.Y - Player.Height / 2f);
+        }
+
+        _bullets.Update(dt, FinishLineY);
 
         _collision.QueryHits(_hits);
         ProcessHits();
 
         if (_player.Position.Y <= FinishLineY)
-            _scenes.Transition(new ResultScene(_scenes, _game));
+            _scenes.Transition(new ResultScene(_scenes, _game,
+                _elapsedTime, _player.MaxSpeedLevel, _destroyedObstacles.Count));
     }
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        var layout  = GameLayout.FromViewport(_game.GraphicsDevice.Viewport);
+        var layout  = _layout;
         float cameraY = MathF.Max(0f, _player.Position.Y - layout.ScreenH / 2f);
 
         spriteBatch.Begin();
         DrawTrack(spriteBatch, cameraY, layout);
         DrawNarrowings(spriteBatch, cameraY, layout);
         DrawObstacles(spriteBatch, cameraY, layout);
+        _bullets.Draw(spriteBatch, _pixel, cameraY);
         _player.Draw(spriteBatch, _pixel, cameraY);
         _hud.Draw(spriteBatch, _player, _combo, layout, TrackStart, FinishLineY);
         spriteBatch.End();
@@ -164,6 +187,24 @@ public sealed class GameScene : IScene
     {
         foreach (var hit in _hits)
         {
+            bool aIsBullet = hit.A.Layer == CollisionLayer.Bullet;
+            bool bIsBullet = hit.B.Layer == CollisionLayer.Bullet;
+
+            if (aIsBullet || bIsBullet)
+            {
+                var bullet = aIsBullet ? hit.A : hit.B;
+                var target = aIsBullet ? hit.B : hit.A;
+                bullet.Active = false;
+
+                if (target.Layer == CollisionLayer.Obstacle &&
+                    _obstacleBodyIndex.TryGetValue(target, out int idx))
+                {
+                    target.Active = false;
+                    _destroyedObstacles.Add(idx);
+                }
+                continue;
+            }
+
             bool aIsPlayer = hit.A.Layer == CollisionLayer.Player;
             bool bIsPlayer = hit.B.Layer == CollisionLayer.Player;
             if (!aIsPlayer && !bIsPlayer) continue;
@@ -187,8 +228,12 @@ public sealed class GameScene : IScene
     {
         var obstacleColor = new Color(180, 100, 20);
 
-        foreach (ref readonly var obs in _obstacles.AsSpan())
+        for (int i = 0; i < _obstacles.Length; i++)
         {
+            if (_destroyedObstacles.Contains(i)) continue;
+
+            ref readonly var obs = ref _obstacles[i];
+
             int screenTop = (int)(obs.WorldTop    - cameraY);
             int screenBot = (int)(obs.WorldBottom - cameraY);
 
