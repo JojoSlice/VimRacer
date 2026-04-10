@@ -91,6 +91,18 @@ public sealed class MainMenuScene : IScene
         }
 
         spriteBatch.End();
+
+        // "PRESS ENTER" below logo, pulsing white
+        const string prompt = "PRESS ENTER";
+        float alpha = (MathF.Sin(_time * 3f) + 1f) / 2f;
+        var promptColor = new Color(1f, 1f, 1f, alpha);
+        Vector2 promptSize = _font.MeasureString(prompt);
+        float promptX = (viewport.Width - promptSize.X) / 2f;
+        float promptY = startY + totalH + 32f;
+
+        spriteBatch.Begin();
+        spriteBatch.DrawString(_font, prompt, new Vector2(promptX, promptY), promptColor);
+        spriteBatch.End();
     }
 
     private static Color HsvToColor(float h, float s, float v)
