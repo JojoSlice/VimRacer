@@ -36,17 +36,18 @@ public sealed class HUD
     {
         sb.Draw(_pixel, layout.ComboRect, ColorPanel);
 
-        int keySz  = Math.Min(52, layout.ComboW - 16);
-        int keyGap = 8;
-        int keyX   = layout.ComboX + (layout.ComboW - keySz) / 2;
+        int n      = combo.Combo.Length;
+        int keyGap = 6;
+        int avail  = layout.ComboW - 16;
+        int keySz  = Math.Clamp((avail - (n - 1) * keyGap) / n, 14, 52);
+        int rowW   = n * keySz + (n - 1) * keyGap;
+        int rowX   = layout.ComboX + (layout.ComboW - rowW) / 2;
+        int rowY   = layout.ScreenH / 2 - keySz - 16;
 
-        int stackH = combo.Combo.Length * keySz + (combo.Combo.Length - 1) * keyGap;
-        int stackY = (layout.ScreenH - stackH) / 2 - 20; // shift up slightly to leave room for streak
-
-        // Keys in single column
-        for (int i = 0; i < combo.Combo.Length; i++)
+        // Keys in horizontal row
+        for (int i = 0; i < n; i++)
         {
-            int ky = stackY + i * (keySz + keyGap);
+            int kx = rowX + i * (keySz + keyGap);
 
             Color bg, fg;
             if (i < combo.Progress)
@@ -65,19 +66,19 @@ public sealed class HUD
                 fg = ColorPending;
             }
 
-            sb.Draw(_pixel, new Rectangle(keyX, ky, keySz, keySz), bg);
+            sb.Draw(_pixel, new Rectangle(kx, rowY, keySz, keySz), bg);
 
             string label    = KeyLabel(combo.Combo[i]);
             Vector2 labelSz = _font.MeasureString(label);
             sb.DrawString(_font, label,
-                new Vector2(keyX + (keySz - labelSz.X) / 2f, ky + (keySz - labelSz.Y) / 2f),
+                new Vector2(kx + (keySz - labelSz.X) / 2f, rowY + (keySz - labelSz.Y) / 2f),
                 fg);
         }
 
         // Timer bar
-        int timerY = stackY + stackH + 12;
-        int timerX = layout.ComboX + 8;
-        int timerW = layout.ComboW - 16;
+        int timerY  = rowY + keySz + 10;
+        int timerX  = layout.ComboX + 8;
+        int timerW  = layout.ComboW - 16;
         int filledW = Math.Max(0, (int)(timerW * combo.TimeLeft / combo.TimeLimit));
 
         sb.Draw(_pixel, new Rectangle(timerX, timerY, timerW, 6), new Color(40, 40, 55));
