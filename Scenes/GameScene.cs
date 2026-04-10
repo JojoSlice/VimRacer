@@ -14,8 +14,9 @@ public sealed class GameScene : IScene
     private HUD _hud = null!;
     private Texture2D _pixel = null!;
 
-    private const float TrackStart  = 9800f; // player starts near bottom
-    private const float FinishLineY = 200f;  // finish line near top
+    private const float TrackStart   = 30000f; // player starts near bottom
+    private const float FinishLineY  = 200f;   // finish line near top
+    private const float MarkerSpacing = 500f;   // lane marker interval
 
     public GameScene(SceneManager scenes, Game game)
     {
@@ -85,8 +86,8 @@ public sealed class GameScene : IScene
         sb.Draw(_pixel, layout.RacingRect, new Color(40, 40, 40));
 
         // Lane markers every 200 world units
-        float first = MathF.Floor(cameraY / 200f) * 200f;
-        for (float worldY = first; worldY < cameraY + layout.ScreenH; worldY += 200f)
+        float first = MathF.Floor(cameraY / MarkerSpacing) * MarkerSpacing;
+        for (float worldY = first; worldY < cameraY + layout.ScreenH; worldY += MarkerSpacing)
         {
             int sy = (int)(worldY - cameraY);
             if (sy < 0 || sy > layout.ScreenH) continue;
