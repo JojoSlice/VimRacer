@@ -76,7 +76,7 @@ public sealed class GameScene : IScene
         spriteBatch.Begin();
         DrawTrack(spriteBatch, cameraY, layout);
         _player.Draw(spriteBatch, _pixel, cameraY);
-        _hud.Draw(spriteBatch, _player, _combo, layout);
+        _hud.Draw(spriteBatch, _player, _combo, layout, TrackStart, FinishLineY);
         spriteBatch.End();
     }
 

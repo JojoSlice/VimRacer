@@ -24,10 +24,11 @@ public sealed class HUD
         _pixel = pixel;
     }
 
-    public void Draw(SpriteBatch sb, Player player, ComboSystem combo, GameLayout layout)
+    public void Draw(SpriteBatch sb, Player player, ComboSystem combo, GameLayout layout,
+                     float trackStart, float trackFinish)
     {
         DrawComboPanel(sb, combo, layout);
-        DrawInfoPanel(sb, player, combo, layout);
+        DrawInfoPanel(sb, player, combo, layout, trackStart, trackFinish);
     }
 
     // ── Combo panel (left section) ───────────────────────────────────────────
@@ -95,33 +96,58 @@ public sealed class HUD
 
     // ── Info panel (right section) ───────────────────────────────────────────
 
-    private void DrawInfoPanel(SpriteBatch sb, Player player, ComboSystem combo, GameLayout layout)
+    private void DrawInfoPanel(SpriteBatch sb, Player player, ComboSystem combo,
+                               GameLayout layout, float trackStart, float trackFinish)
     {
         sb.Draw(_pixel, layout.InfoRect, ColorPanel);
 
-        const int SegH  = 18;
-        const int SegGap = 4;
-        int segW   = Math.Max(4, layout.InfoW - 16);
-        int segX   = layout.InfoX + (layout.InfoW - segW) / 2;
-        int meterH = 10 * SegH + 9 * SegGap;
-        int meterY = (layout.ScreenH - meterH) / 2;
+        const int PadB   = 8;
+        const int SegH   = 10;
+        const int SegGap = 3;
+        const int MeterH = 10 * SegH + 9 * SegGap; // 127px
+        int segW = Math.Max(4, layout.InfoW - 16);
+        int segX = layout.InfoX + (layout.InfoW - segW) / 2;
+
+        // ── Bottom: bullet + speed meter ────────────────────────────────────
+        string bulletText = combo.HasBullet ? "[*]" : "[ ]";
+        Vector2 bulletSz  = _font.MeasureString(bulletText);
+        int bulletY = layout.ScreenH - PadB - (int)bulletSz.Y;
+        float bx = layout.InfoX + (layout.InfoW - bulletSz.X) / 2f;
+        sb.DrawString(_font, bulletText, new Vector2(bx, bulletY),
+            combo.HasBullet ? ColorBullet : new Color(80, 80, 80));
+
+        int meterBottom = bulletY - 8;
+        int meterTop    = meterBottom - MeterH;
 
         // Speed meter: 10 segments, filled bottom-up
         for (int i = 0; i < 10; i++)
         {
-            int sy     = meterY + (9 - i) * (SegH + SegGap);
+            int sy     = meterTop + (9 - i) * (SegH + SegGap);
             bool filled = i < player.MaxSpeedLevel;
             sb.Draw(_pixel, new Rectangle(segX, sy, segW, SegH),
                 filled ? ColorSpeed : new Color(30, 40, 30));
         }
 
-        // Bullet indicator above speed meter
-        string bulletText = combo.HasBullet ? "[*]" : "[ ]";
-        Vector2 bulletSz  = _font.MeasureString(bulletText);
-        float bx = layout.InfoX + (layout.InfoW - bulletSz.X) / 2f;
-        float by = meterY - bulletSz.Y - 10f;
-        sb.DrawString(_font, bulletText, new Vector2(bx, by),
-            combo.HasBullet ? ColorBullet : new Color(80, 80, 80));
+        // ── Progress strip ───────────────────────────────────────────────────
+        const int StripPadT = 16;
+        const int StripPadB = 16;
+        const int StripW    = 6;
+        int stripTop    = StripPadT;
+        int stripBottom = meterTop - StripPadB;
+        int stripH      = stripBottom - stripTop;
+        int stripX      = layout.InfoX + (layout.InfoW - StripW) / 2;
+
+        // Background (full track)
+        sb.Draw(_pixel, new Rectangle(stripX, stripTop, StripW, stripH), new Color(40, 40, 55));
+
+        // Player progress marker
+        float progress  = Math.Clamp((trackStart - player.Position.Y) / (trackStart - trackFinish), 0f, 1f);
+        int   markerY   = (int)(stripBottom - progress * stripH);
+        const int MarkerH = 4;
+        const int MarkerW = 14;
+        sb.Draw(_pixel,
+            new Rectangle(layout.InfoX + (layout.InfoW - MarkerW) / 2, markerY - MarkerH / 2, MarkerW, MarkerH),
+            Color.Cyan);
     }
 
     private static string KeyLabel(Keys key) => key switch
