@@ -14,7 +14,8 @@ public sealed class GameScene : IScene
     private HUD _hud = null!;
     private Texture2D _pixel = null!;
 
-    private const float FinishLineY = 9800f;
+    private const float TrackStart  = 9800f; // player starts near bottom
+    private const float FinishLineY = 200f;  // finish line near top
 
     public GameScene(SceneManager scenes, Game game)
     {
@@ -26,7 +27,7 @@ public sealed class GameScene : IScene
     {
         var layout  = GameLayout.FromViewport(_game.GraphicsDevice.Viewport);
         float startX = (layout.TrackLeft + layout.TrackRight) / 2f;
-        _player = new Player(new Vector2(startX, 200f));
+        _player = new Player(new Vector2(startX, TrackStart));
         _combo  = new ComboSystem();
         _combo.GenerateCombo(_player.MaxSpeedLevel);
     }
@@ -62,7 +63,7 @@ public sealed class GameScene : IScene
         var layout = GameLayout.FromViewport(_game.GraphicsDevice.Viewport);
         _player.Update(gameTime, layout.TrackLeft, layout.TrackRight);
 
-        if (_player.Position.Y >= FinishLineY)
+        if (_player.Position.Y <= FinishLineY)
             _scenes.Transition(new ResultScene(_scenes, _game));
     }
 

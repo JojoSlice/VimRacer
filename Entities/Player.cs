@@ -40,8 +40,8 @@ public sealed class Player
         else if (InputSystem.SpeedDown)
             Speed = MathF.Max(Speed - SpeedChangeRate * dt, MinSpeed);
 
-        // Move forward (downward in world space)
-        Position.Y += Speed * dt;
+        // Move forward (upward on screen = negative Y in world space)
+        Position.Y -= Speed * dt;
 
         // Lateral movement: h = left, l = right
         if (InputSystem.MoveLeft)
