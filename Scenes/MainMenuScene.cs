@@ -91,22 +91,26 @@ public sealed class MainMenuScene : IScene
         // Command list below logo
         (string Cmd, string Desc)[] commands =
         [
-            (":run",   "start race"),
-            (":lobby", "multiplayer"),
-            (":q",     "quit"),
+            (":run",     "start race"),
+            (":lobby",   "multiplayer"),
+            (":friends", "friend list"),
+            (":q",       "quit"),
         ];
 
         var cmdColor  = new Color(100, 210, 210);
         var descColor = new Color(100, 100, 110);
 
         float cmdW  = 0f;
-        foreach (var (cmd, _) in commands)
-            cmdW = MathF.Max(cmdW, _font.MeasureString(cmd).X);
+        float descW = 0f;
+        foreach (var (cmd, desc) in commands)
+        {
+            cmdW  = MathF.Max(cmdW,  _font.MeasureString(cmd).X);
+            descW = MathF.Max(descW, _font.MeasureString(desc).X);
+        }
 
         float lineH    = _font.LineSpacing;
-        float blockH   = commands.Length * lineH;
         float blockY   = startY + totalH + 40f;
-        float blockX   = (viewport.Width - cmdW - 16f - _font.MeasureString("start race").X) / 2f;
+        float blockX   = (viewport.Width - cmdW - 16f - descW) / 2f;
 
         spriteBatch.Begin();
         for (int i = 0; i < commands.Length; i++)

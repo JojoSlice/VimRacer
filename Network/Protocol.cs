@@ -20,6 +20,9 @@ public enum MsgType : byte
     C_InviteFriend  = 0x0B,   // WriteStr(targetUsername)
     C_AcceptInvite  = 0x0C,   // Write(int lobbyId)
     C_DeclineInvite = 0x0D,   // Write(int lobbyId)
+    C_AddFriend     = 0x0E,   // WriteStr(username)
+    C_RemoveFriend  = 0x0F,   // WriteStr(username)
+    C_ListFriends   = 0x30,   // no payload
 
     // Server → Client
     S_LobbyList    = 0x10,
@@ -32,7 +35,11 @@ public enum MsgType : byte
     S_PlayerUpdate = 0x21,   // byte playerIndex, float x, float y
     S_LoginOk      = 0x22,   // Write(int userId), WriteStr(username)
     S_LoginFail    = 0x23,   // WriteStr(reason)
-    S_LobbyInvite  = 0x24,   // WriteStr(fromUsername), Write(int lobbyId), WriteStr(lobbyName)
+    S_LobbyInvite   = 0x24,   // WriteStr(fromUsername), Write(int lobbyId), WriteStr(lobbyName)
+    S_FriendList    = 0x25,   // Write(short count), per entry: Write(int id), WriteStr(name), Write(bool online), Write(bool isPending)
+    S_FriendRequest = 0x26,   // WriteStr(fromUsername)
+    S_FriendOnline  = 0x27,   // WriteStr(username)
+    S_FriendOffline = 0x28,   // WriteStr(username)
 }
 
 public static class Packet

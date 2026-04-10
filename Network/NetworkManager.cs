@@ -12,6 +12,7 @@ public record PlayerSlot(string Name, bool Ready);
 public record LobbyInfo(int Id, string Name, PlayerSlot[] Players, int MyIndex, bool IsPrivate);
 public record LoginResult(int UserId, string Username);
 public record InviteNotification(string FromUsername, int LobbyId, string LobbyName);
+public record FriendEntry(int UserId, string Username, bool Online, bool IsPending);
 
 public sealed class NetworkManager : INetworkTransport, INetEventListener
 {
@@ -59,6 +60,10 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
     public event Action<LoginResult>?         OnLoginOk;
     public event Action<string>?              OnLoginFail;
     public event Action<InviteNotification>?  OnLobbyInvite;
+    public event Action<FriendEntry[]>?       OnFriendList;
+    public event Action<string>?              OnFriendRequest;
+    public event Action<string>?              OnFriendOnline;
+    public event Action<string>?              OnFriendOffline;
 
     public InviteNotification? PendingInvite { get; private set; }
 
@@ -110,6 +115,15 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
     public void SendPosition(float x, float y) =>
         SendRaw(Packet.Build(MsgType.C_PlayerUpdate, w => { w.Write(x); w.Write(y); }));
 
+    public void AddFriend(string username) =>
+        SendRaw(Packet.Build(MsgType.C_AddFriend, w => Packet.WriteStr(w, username)));
+
+    public void RemoveFriend(string username) =>
+        SendRaw(Packet.Build(MsgType.C_RemoveFriend, w => Packet.WriteStr(w, username)));
+
+    public void RequestFriendList() =>
+        SendRaw(Packet.Simple(MsgType.C_ListFriends));
+
     // ── INetEventListener ────────────────────────────────────────────────────
 
     public void OnConnectionRequest(ConnectionRequest request) { }
@@ -149,7 +163,11 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
             case MsgType.S_Error:        OnError?.Invoke(Packet.ReadStr(br));       break;
             case MsgType.S_LoginOk:     HandleLoginOk(br);                        break;
             case MsgType.S_LoginFail:   OnLoginFail?.Invoke(Packet.ReadStr(br));  break;
-            case MsgType.S_LobbyInvite: HandleLobbyInvite(br);                    break;
+            case MsgType.S_LobbyInvite:  HandleLobbyInvite(br);                    break;
+            case MsgType.S_FriendList:   HandleFriendList(br);                     break;
+            case MsgType.S_FriendRequest: OnFriendRequest?.Invoke(Packet.ReadStr(br)); break;
+            case MsgType.S_FriendOnline:  OnFriendOnline?.Invoke(Packet.ReadStr(br));  break;
+            case MsgType.S_FriendOffline: OnFriendOffline?.Invoke(Packet.ReadStr(br)); break;
         }
     }
 
@@ -220,6 +238,21 @@ public sealed class NetworkManager : INetworkTransport, INetEventListener
         float x   = r.ReadSingle();
         float y   = r.ReadSingle();
         OnPlayerUpdate?.Invoke(idx, x, y);
+    }
+
+    private void HandleFriendList(BinaryReader r)
+    {
+        int count   = r.ReadInt16();
+        var friends = new FriendEntry[count];
+        for (int i = 0; i < count; i++)
+        {
+            int    id        = r.ReadInt32();
+            string name      = Packet.ReadStr(r);
+            bool   online    = r.ReadBoolean();
+            bool   isPending = r.ReadBoolean();
+            friends[i] = new FriendEntry(id, name, online, isPending);
+        }
+        OnFriendList?.Invoke(friends);
     }
 
     private static PlayerSlot[] ReadPlayerSlots(BinaryReader r)

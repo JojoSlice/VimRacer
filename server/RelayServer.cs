@@ -39,6 +39,18 @@ internal sealed class RelayServer : INetEventListener
         if (!_registry.TryGet(peer, out var player)) return;
         NotifyLobbyOnExit(player);
         _registry.Remove(peer);
+
+        // Notify online friends
+        if (player.UserId.HasValue)
+        {
+            var friendIds  = _db.GetFriendIds(player.UserId.Value);
+            var offlineMsg = Packet.Build(MsgType.S_FriendOffline, w => Packet.WriteStr(w, player.Username));
+            foreach (var fid in friendIds)
+            {
+                var fp = _registry.FindByUserId(fid);
+                if (fp != null) Send(fp.Peer, offlineMsg);
+            }
+        }
     }
 
     public void OnNetworkReceive(NetPeer peer, NetPacketReader reader,
@@ -64,6 +76,9 @@ internal sealed class RelayServer : INetEventListener
             case MsgType.C_InviteFriend:  HandleInviteFriend(player, br);    break;
             case MsgType.C_AcceptInvite:  HandleAcceptInvite(player, br);    break;
             case MsgType.C_DeclineInvite: HandleDeclineInvite(player, br);   break;
+            case MsgType.C_AddFriend:     HandleAddFriend(player, br);       break;
+            case MsgType.C_RemoveFriend:  HandleRemoveFriend(player, br);    break;
+            case MsgType.C_ListFriends:   HandleListFriends(player);         break;
             case MsgType.C_GameData:      HandleGameData(player, data);      break;
             case MsgType.C_PlayerUpdate:  HandlePlayerUpdate(player, data);  break;
             // C_Hello (0x01) intentionally unhandled — kept in enum to avoid
@@ -132,6 +147,15 @@ internal sealed class RelayServer : INetEventListener
             w.Write(userId);
             Packet.WriteStr(w, player.Username);
         }));
+
+        // Notify online friends
+        var friendIds = _db.GetFriendIds(userId);
+        var onlineMsg = Packet.Build(MsgType.S_FriendOnline, w => Packet.WriteStr(w, player.Username));
+        foreach (var fid in friendIds)
+        {
+            var fp = _registry.FindByUserId(fid);
+            if (fp != null) Send(fp.Peer, onlineMsg);
+        }
     }
 
     // ── Lobby handlers ────────────────────────────────────────────────────────
@@ -327,6 +351,63 @@ internal sealed class RelayServer : INetEventListener
         });
         foreach (var other in lobby.Others(sender))
             Send(other.Peer, msg);
+    }
+
+    // ── Friend handlers ───────────────────────────────────────────────────────
+
+    private void HandleAddFriend(PlayerInfo player, BinaryReader r)
+    {
+        if (!RequireLogin(player)) return;
+
+        string targetName = Packet.ReadStr(r);
+        int? targetId = _db.GetUserIdByUsername(targetName);
+        if (targetId == null) { SendError(player.Peer, "User not found."); return; }
+        if (targetId == player.UserId) { SendError(player.Peer, "Cannot add yourself."); return; }
+
+        var (ok, error) = _db.SendFriendRequest(player.UserId!.Value, targetId.Value);
+        if (!ok) { SendError(player.Peer, error ?? "Could not send request."); return; }
+
+        // If target is online, send a friend request notification
+        var target = _registry.FindByUserId(targetId.Value);
+        if (target != null)
+            Send(target.Peer, Packet.Build(MsgType.S_FriendRequest, w => Packet.WriteStr(w, player.Username)));
+
+        SendFriendList(player);
+    }
+
+    private void HandleRemoveFriend(PlayerInfo player, BinaryReader r)
+    {
+        if (!RequireLogin(player)) return;
+
+        string targetName = Packet.ReadStr(r);
+        int? targetId = _db.GetUserIdByUsername(targetName);
+        if (targetId == null) { SendError(player.Peer, "User not found."); return; }
+
+        _db.RemoveFriendship(player.UserId!.Value, targetId.Value);
+        SendFriendList(player);
+    }
+
+    private void HandleListFriends(PlayerInfo player)
+    {
+        if (!RequireLogin(player)) return;
+        SendFriendList(player);
+    }
+
+    private void SendFriendList(PlayerInfo player)
+    {
+        var friends = _db.GetFriends(player.UserId!.Value);
+        var msg = Packet.Build(MsgType.S_FriendList, w =>
+        {
+            w.Write((short)friends.Count);
+            foreach (var (id, name, isPending) in friends)
+            {
+                w.Write(id);
+                Packet.WriteStr(w, name);
+                w.Write(_registry.FindByUserId(id) != null); // online
+                w.Write(isPending);
+            }
+        });
+        Send(player.Peer, msg);
     }
 
     // ── Senders ──────────────────────────────────────────────────────────────

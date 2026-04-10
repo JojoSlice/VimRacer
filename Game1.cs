@@ -84,10 +84,14 @@ public sealed class Game1 : Game
             _scenes.Transition(new MainMenuScene(_scenes, this));
         else if (_command == ":lobby")
             _scenes.Transition(new LoginScene(_scenes, this, _network));
+        else if (_command == ":friends")
+            _scenes.Transition(new FriendScene(_scenes, this, _network));
         else if (_scenes.CurrentScene is LoginScene login)
             login.HandleCommand(_command);
         else if (_scenes.CurrentScene is LobbyScene lobby)
             lobby.HandleCommand(_command);
+        else if (_scenes.CurrentScene is FriendScene friends)
+            friends.HandleCommand(_command);
 
         _commandActive = false;
         _command = "";
